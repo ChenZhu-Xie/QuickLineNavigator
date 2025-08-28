@@ -349,7 +349,7 @@ class UgrepExecutor:
         if (arg_str.startswith('"') and arg_str.endswith('"')) or \
            (arg_str.startswith("'") and arg_str.endswith("'")) or \
            (arg_str.startswith("“") and arg_str.endswith("”")) or \
-           (arg_str.startswith("‘") and arg_str.endswith("’")) or:
+           (arg_str.startswith("‘") and arg_str.endswith("’")):
             return arg_str
         
         needs_quotes = ' ' in arg_str or any(c in arg_str for c in '"\'\\()[]{}*?|^$&;') or arg_str != arg_str.strip()

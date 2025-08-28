@@ -344,7 +344,7 @@ Access settings via `Preferences` → `Package Settings` → `QuickLineNavigator
 This plugin was inspired by and built upon the ideas from several excellent projects and resources:
 
 ### Plugin Inspirations
-- **[Fuzzy Search Plugin Discussion](https://forum.sublimetext.com/t/fuzzy-search-jump-to-any-line-via-quick-panel-plugin/45947)** - The original concept discussion that sparked the idea for quick line navigation in Sublime Text.
+- **[Fuzzy Search Plugin Discussion](https://forum.sublimetext.com/t/fuzzy-search-jump-to-any-line-via-quick-panel-plugin/45947)** - The original concept discussion that sparked the idea for fuzzy searches enhanced quick line navigation in Sublime Text.
 
 - **[SearchInProject](https://github.com/leonid-shevtsov/SearchInProject_SublimeText)** by Leonid Shevtsov - An excellent implementation of project-wide search that influenced our multi-scope search design.
 

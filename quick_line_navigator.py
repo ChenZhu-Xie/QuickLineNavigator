@@ -259,7 +259,7 @@ class UgrepExecutor:
         return None
     
     def search(self, paths, keywords, file_filter):
-        if not self.path or not keywords:
+        if not self.path:
             return []
         
         cmd = [self.path, "-n", "-H", "--color=never", "-r", "-I", "-i"]
@@ -272,7 +272,11 @@ class UgrepExecutor:
         else:
             self._apply_filters(cmd, file_filter)
         
-        self._add_keywords(cmd, keywords)
+        if not keywords:
+            cmd.extend(["-e", r"^\s*\S"])  # cmd.append(".")
+        else:
+            self._add_keywords(cmd, keywords)
+        
         cmd.extend(paths if isinstance(paths, list) else [paths])
         
         print("  🔧 Ugrep: {0}".format(" ".join(self._format_arg(arg, i == 0) for i, arg in enumerate(cmd))))
@@ -343,7 +347,9 @@ class UgrepExecutor:
             return str(arg)
         arg_str = str(arg)
         if (arg_str.startswith('"') and arg_str.endswith('"')) or \
-           (arg_str.startswith("'") and arg_str.endswith("'")):
+           (arg_str.startswith("'") and arg_str.endswith("'")) or \
+           (arg_str.startswith("“") and arg_str.endswith("”")) or \
+           (arg_str.startswith("‘") and arg_str.endswith("’")) or:
             return arg_str
         
         needs_quotes = ' ' in arg_str or any(c in arg_str for c in '"\'\\()[]{}*?|^$&;') or arg_str != arg_str.strip()
@@ -437,7 +443,7 @@ class SearchEngine:
         self.ugrep = UgrepExecutor()
     
     def search(self, paths, keywords, original_keywords=""):
-        if not paths or not keywords:
+        if not paths:
             return []
         
         start_time = time.time()
@@ -480,8 +486,9 @@ class SearchEngine:
             if not display_text:
                 continue
             
-            if not all(re.search(re.escape(kw), display_text, re.IGNORECASE) for kw in keywords):
-                continue
+            if keywords:
+                if not all(re.search(re.escape(kw), display_text, re.IGNORECASE) for kw in keywords):
+                    continue
             
             line_num = view.rowcol(region.begin())[0] + 1
             results.append({
@@ -539,8 +546,9 @@ class SearchEngine:
                     if not display_text:
                         continue
                     
-                    if not all(re.search(re.escape(kw), display_text, re.IGNORECASE) for kw in keywords):
-                        continue
+                    if keywords:
+                        if not all(re.search(re.escape(kw), display_text, re.IGNORECASE) for kw in keywords):
+                            continue
                     
                     results.append({
                         'file': file_path,
@@ -977,7 +985,7 @@ class QuickLineNavigatorCommand(sublime_plugin.WindowCommand):
                     break
         
         self.window.show_input_panel(
-            UIText.get_search_prompt(scope),  # 使用统一的提示文字
+            UIText.get_search_prompt(scope),
             initial_text,
             self.on_done,
             self.on_change,
@@ -985,16 +993,11 @@ class QuickLineNavigatorCommand(sublime_plugin.WindowCommand):
         )
     
     def on_done(self, input_text):
-        if not input_text:
-            return
-        
         self.original_keywords = input_text
-        keywords = TextUtils.parse_keywords(input_text)
+        keywords = TextUtils.parse_keywords(input_text) if input_text else []
         
-        if not keywords:
-            return
-        
-        highlighter.highlight(self.window.active_view(), keywords)
+        if keywords:
+            highlighter.highlight(self.window.active_view(), keywords)
         
         if self.scope == "file":
             results = self._search_file(keywords)
@@ -1112,20 +1115,14 @@ class QuickLineNavigatorOpenFilesCommand(sublime_plugin.WindowCommand):
         )
     
     def on_done(self, input_text):
-        if not input_text:
-            return
-        
         self.original_keywords = input_text
-        keywords = TextUtils.parse_keywords(input_text)
+        keywords = TextUtils.parse_keywords(input_text) if input_text else []
         
-        if not keywords:
-            return
+        if keywords:
+            for view in self.window.views():
+                if view and view.is_valid():
+                    highlighter.highlight(view, keywords)
         
-        for view in self.window.views():
-            if view and view.is_valid():
-                highlighter.highlight(view, keywords)
-        
-        # 搜索
         search = SearchEngine(self.settings, "open_files", self.window)
         results = search.search(self.open_files, keywords, self.original_keywords)
         
@@ -1212,7 +1209,7 @@ class ToggleExtensionFiltersCommand(sublime_plugin.WindowCommand):
         
         settings.update_user_settings("extension_filters", new_value)
         
-        status = "enabled" if new_value else "disabled"
+        status = "enabled ✓" if new_value else "disabled ✗"
         sublime.status_message(UIText.get_status_message('filter_enabled', status=status, mode='permanently'))
         
         if hasattr(self.window, 'extension_filters_temp_override'):
@@ -1230,7 +1227,7 @@ class ToggleExtensionFiltersTemporaryCommand(sublime_plugin.WindowCommand):
         
         self.window.extension_filters_temp_override = not current
         
-        status = "enabled" if not current else "disabled"
+        status = "enabled ✓" if not current else "disabled ✗"
         sublime.status_message(UIText.get_status_message('filter_enabled', status=status, mode='temporarily'))
 
 

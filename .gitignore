@@ -1,0 +1,19 @@
+# Python
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+
+# Sublime Text
+*.sublime-workspace
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs and cache
+*.log
+*.cache
+
+# Version control folder
+manual_version_control/

@@ -1,0 +1,23 @@
+[
+    // === Main Menu ===
+    { "keys": ["cmd+alt+q"], "command": "quick_line_navigator_menu" },
+
+    // === Main Search Features ===
+    { "keys": ["alt+r"], "command": "quick_line_navigator", "args": {"scope": "file"} },
+    { "keys": ["cmd+alt+r"], "command": "quick_line_navigator", "args": {"scope": "project"} },
+    { "keys": ["shift+alt+r"], "command": "quick_line_navigator", "args": {"scope": "folder"} },
+    { "keys": ["cmd+shift+alt+r"], "command": "quick_line_navigator_open_files" },
+    
+    // === Filter Controls ===
+    { "keys": ["cmd+alt+f"], "command": "toggle_extension_filters" },
+    { "keys": ["cmd+alt+shift+f"], "command": "toggle_extension_filters_temporary" },
+    { "keys": ["cmd+alt+s"], "command": "show_filter_status" },
+    
+    // === Folder Settings ===
+    { "keys": ["cmd+alt+d"], "command": "set_search_folder" },
+    { "keys": ["cmd+alt+shift+d"], "command": "clear_search_folder" },
+    
+    // === Highlight Management ===
+    { "keys": ["cmd+alt+h"], "command": "clear_keyword_highlights" },
+    { "keys": ["cmd+shift+h"], "command": "clear_current_view_highlights" }
+]

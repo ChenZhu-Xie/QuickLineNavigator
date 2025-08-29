@@ -1,6 +1,6 @@
 [
     // === Main Menu ===
-    { "keys": ["ctrl+alt+q"], "command": "quick_line_navigator_menu" },
+    { "keys": ["ctrl+shift+q"], "command": "quick_line_navigator_menu" },
 
     // === Main Search Features ===
     { "keys": ["alt+r"], "command": "quick_line_navigator", "args": {"scope": "file"} },

@@ -19,7 +19,7 @@ https://github.com/user-attachments/assets/8d766ede-6b58-4bf3-bdea-b802909f7d77
 ### 🎯 Main Navigation
 | Command | Windows/Linux | Mac | Description |
 |---------|---------------|-----|-------------|
-| Main Menu | `Ctrl+Alt+Q` | `Cmd+Alt+Q` | Open QuickLineNavigator main menu |
+| Main Menu | `Ctrl+Shift+Q` | `Cmd+Shift+Q` | Open QuickLineNavigator main menu |
 
 ### 🔍 Search Commands
 | Command | Windows/Linux | Mac | Description |

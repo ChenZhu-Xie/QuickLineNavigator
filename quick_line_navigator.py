@@ -767,7 +767,7 @@ class DisplayFormatter:
         return result
     
     def _split_into_segments(self, line_with_emojis, original_line, keywords):
-        """将带emoji的行拆分成多个片段"""
+        """将带emoji的行拆分成多个片段，确保emoji+关键字对不被截断"""
         segments = []
         original_stripped = original_line.strip()
         
@@ -780,59 +780,171 @@ class DisplayFormatter:
             })
             return segments
         
-        # 找到所有关键词在原始文本中的位置
-        keyword_positions = []
-        original_lower = original_stripped.lower()
-        for keyword in keywords:
-            keyword_lower = keyword.lower()
-            pos = 0
-            while True:
-                index = original_lower.find(keyword_lower, pos)
-                if index == -1:
-                    break
-                keyword_positions.append((index, index + len(keyword)))
-                pos = index + 1
+        # 找到所有 emoji+关键字对 在修改后文本中的位置
+        emoji_keyword_ranges = self._find_emoji_keyword_ranges(line_with_emojis, keywords)
         
-        # 按位置排序
-        keyword_positions.sort()
-        
-        # 为每个关键词位置创建一个片段
-        if keyword_positions:
-            for start, end in keyword_positions:
-                # 计算片段的开始和结束位置（包含上下文）
-                context_before = 20  # 关键词前的字符数
-                context_after = self.max_length - context_before - (end - start) - 2  # 留2个字符给emoji
-                
-                seg_start = max(0, start - context_before)
-                seg_end = min(len(original_stripped), end + context_after)
-                
-                # 从带emoji的完整行中提取对应片段
-                segment_text = self._extract_segment_with_emoji(
-                    line_with_emojis, original_stripped, seg_start, seg_end, keywords
-                )
-                
-                segments.append({
-                    'display': segment_text,
-                    'start': seg_start,
-                    'end': seg_end
-                })
-        else:
-            # 如果没有关键词，按固定长度拆分
-            pos = 0
-            while pos < len(original_stripped):
-                seg_end = min(pos + self.max_length, len(original_stripped))
-                segment_text = line_with_emojis[pos:seg_end]
-                segments.append({
-                    'display': segment_text,
-                    'start': pos,
-                    'end': seg_end
-                })
-                pos = seg_end
-        
-        # 去重和合并重叠的片段
-        segments = self._merge_overlapping_segments(segments)
+        # 按照最大显示宽度进行分段
+        current_pos = 0
+        while current_pos < len(line_with_emojis):
+            segment_end = self._find_safe_cut_position(
+                line_with_emojis, current_pos, self.max_length, emoji_keyword_ranges
+            )
+            
+            if segment_end <= current_pos:
+                # 防止无限循环，至少取一个字符
+                segment_end = current_pos + 1
+            
+            segment_text = line_with_emojis[current_pos:segment_end]
+            
+            # 计算在原始文本中对应的位置（大概估算）
+            orig_start = self._map_to_original_position(current_pos, line_with_emojis, original_stripped, keywords)
+            orig_end = self._map_to_original_position(segment_end, line_with_emojis, original_stripped, keywords)
+            
+            segments.append({
+                'display': segment_text,
+                'start': orig_start,
+                'end': orig_end
+            })
+            
+            current_pos = segment_end
         
         return segments
+
+    def _find_emoji_keyword_ranges(self, line_with_emojis, keywords):
+        """找到所有emoji+关键字对在修改后文本中的位置范围"""
+        ranges = []
+        line_lower = line_with_emojis.lower()
+        
+        # 创建关键词到emoji的映射
+        keyword_emoji_map = {}
+        for i, keyword in enumerate(keywords):
+            keyword_emoji_map[keyword.lower()] = KEYWORD_EMOJIS[i % len(KEYWORD_EMOJIS)]
+        
+        # 查找每个emoji+关键字对的位置
+        for keyword in keywords:
+            keyword_lower = keyword.lower()
+            emoji = keyword_emoji_map[keyword_lower]
+            pattern = emoji + keyword_lower  # emoji紧接着关键字
+            
+            pos = 0
+            while True:
+                # 不区分大小写查找
+                found_pos = line_lower.find(pattern.lower(), pos)
+                if found_pos == -1:
+                    break
+                
+                # 记录emoji+关键字对的范围
+                ranges.append((found_pos, found_pos + len(pattern)))
+                pos = found_pos + 1
+        
+        # 按位置排序
+        ranges.sort()
+        return ranges
+
+    def _find_safe_cut_position(self, text, start_pos, max_width, emoji_keyword_ranges):
+        """找到安全的截断位置，不会截断emoji+关键字对"""
+        if start_pos >= len(text):
+            return len(text)
+        
+        # 计算理想的截断位置
+        ideal_end = start_pos
+        current_width = 0
+        
+        while ideal_end < len(text) and current_width < max_width:
+            char = text[ideal_end]
+            char_width = TextUtils.display_width(char)
+            if current_width + char_width > max_width:
+                break
+            current_width += char_width
+            ideal_end += 1
+        
+        # 检查理想截断位置是否会截断emoji+关键字对
+        safe_end = ideal_end
+        for range_start, range_end in emoji_keyword_ranges:
+            # 如果截断位置在某个emoji+关键字对的中间
+            if range_start < ideal_end < range_end:
+                # 如果整个emoji+关键字对都在当前段的范围内
+                if range_start >= start_pos:
+                    # 截断位置移动到这个对的开始位置
+                    safe_end = min(safe_end, range_start)
+                else:
+                    # 如果emoji+关键字对跨越了段的开始位置，则移动到对的结束位置
+                    safe_end = range_end
+                    break
+        
+        # 确保至少有一些内容
+        if safe_end <= start_pos:
+            # 找到下一个安全位置
+            for range_start, range_end in emoji_keyword_ranges:
+                if range_start > start_pos:
+                    safe_end = range_end
+                    break
+            
+            # 如果还是没有找到，至少取到下一个emoji+关键字对结束
+            if safe_end <= start_pos and emoji_keyword_ranges:
+                next_safe = start_pos + 1
+                for range_start, range_end in emoji_keyword_ranges:
+                    if range_start >= start_pos:
+                        next_safe = range_end
+                        break
+                safe_end = min(next_safe, len(text))
+            elif safe_end <= start_pos:
+                safe_end = min(start_pos + 10, len(text))  # 至少取10个字符
+        
+        return min(safe_end, len(text))
+
+    def _map_to_original_position(self, pos_in_modified, line_with_emojis, original_line, keywords):
+        """将修改后文本中的位置映射回原始文本中的位置"""
+        if pos_in_modified <= 0:
+            return 0
+        if pos_in_modified >= len(line_with_emojis):
+            return len(original_line.strip())
+        
+        # 计算到指定位置为止插入了多少个emoji
+        emoji_count = 0
+        modified_pos = 0
+        original_lower = original_line.strip().lower()
+        
+        # 创建关键词到emoji的映射
+        keyword_emoji_map = {}
+        for i, keyword in enumerate(keywords):
+            keyword_emoji_map[keyword.lower()] = KEYWORD_EMOJIS[i % len(KEYWORD_EMOJIS)]
+        
+        # 遍历原始文本，计算emoji插入
+        original_pos = 0
+        while original_pos < len(original_lower) and modified_pos < pos_in_modified:
+            # 检查当前位置是否是某个关键字的开始
+            emoji_inserted = False
+            for keyword in keywords:
+                keyword_lower = keyword.lower()
+                if (original_pos + len(keyword_lower) <= len(original_lower) and
+                    original_lower[original_pos:original_pos + len(keyword_lower)] == keyword_lower):
+                    
+                    # 如果modified位置还没到这个emoji位置，说明在emoji之前
+                    if modified_pos < pos_in_modified:
+                        emoji_count += 1
+                        modified_pos += 1  # emoji占1个位置
+                        emoji_inserted = True
+                    break
+            
+            # 移动一个字符
+            if modified_pos < pos_in_modified:
+                modified_pos += 1
+            original_pos += 1
+            
+            if emoji_inserted:
+                # 跳过已经处理的关键字字符
+                for keyword in keywords:
+                    keyword_lower = keyword.lower()
+                    if (original_pos <= len(original_lower) - len(keyword_lower) and
+                        original_lower[original_pos:original_pos + len(keyword_lower)] == keyword_lower):
+                        original_pos += len(keyword_lower) - 1  # -1因为外层循环会+1
+                        modified_pos += len(keyword_lower) - 1
+                        break
+        
+        # 原始位置 = 修改后位置 - emoji数量
+        result = max(0, min(pos_in_modified - emoji_count, len(original_line.strip())))
+        return result
     
     def _extract_segment_with_emoji(self, full_line, original_line, start, end, keywords):
         """从带emoji的完整行中提取指定片段"""
@@ -868,27 +980,6 @@ class DisplayFormatter:
                 pos = index + 1
         
         return full_line[adjusted_start:adjusted_end]
-    
-    def _merge_overlapping_segments(self, segments):
-        """合并重叠的片段"""
-        if not segments:
-            return segments
-        
-        # 按开始位置排序
-        segments.sort(key=lambda x: x['start'])
-        
-        merged = [segments[0]]
-        for current in segments[1:]:
-            last = merged[-1]
-            # 如果有重叠，合并
-            if current['start'] <= last['end']:
-                last['end'] = max(last['end'], current['end'])
-                # 重新生成显示文本
-                last['display'] = last['display'] + current['display'][last['end'] - current['start']:]
-            else:
-                merged.append(current)
-        
-        return merged
     
     def _format_sub_line(self, item, index, scope, segment_index=0, total_segments=1):
         parts = []

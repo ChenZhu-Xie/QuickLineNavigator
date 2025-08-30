@@ -357,7 +357,7 @@ This plugin was inspired by and built upon the ideas from several excellent proj
 - **[Pieces Copilot](https://pieces.app/)** - An invaluable AI-powered development assistant that helped streamline the coding process and improve code quality throughout this project.
 
 ### Special Thanks
-- [ugrep](https://github.com/Genivia/ugrep) by Robert van Engelen for the blazing-fast search engine which supports `--and`
+- [ugrep](https://github.com/Genivia/ugrep) by Robert van Engelen _et al._ for the blazing-fast search engine which supports `--and`
 - All contributors and users who help make sublime searching experience better
 
 ## 📝 License

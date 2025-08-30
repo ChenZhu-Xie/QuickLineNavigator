@@ -25,9 +25,8 @@ DEFAULT_BLACKLIST = ['.exe', '.dll', '.so', '.dylib', '.a', '.lib', '.obj', '.o'
                      '.git', '.svn', '.hg',
                      '.tmp', '.cache', '.log', '.swp', '.swo', '.swn', '.bak', '~']
 
-HIGHLIGHT_SCOPES = ['region.redish', 'region.bluish', 'region.yellowish', 'region.greenish', # region.bluish → region.cyanish
-                    'region.purplish', 'region.orangish', 'region.grayish']  # no region.grayish in mariana's default color scheme
-                    # region.pinkish too similar to region.purplish
+HIGHLIGHT_SCOPES = ['region.redish', 'region.bluish', 'region.yellowish', 'region.greenish',
+                    'region.purplish', 'region.orangish', 'region.grayish']
 HIGHLIGHT_ICONS = ['dot', 'circle', 'cross', 'bookmark', 'dot', 'circle', 'bookmark']
 KEYWORD_EMOJIS = ['🟥', '🟦', '🟨', '🟩', '🟪', '🟧', '⬜']
 
@@ -181,10 +180,10 @@ class TextUtils:
         in_quotes = False
         quote_char = None
         quote_pairs = {
-            '"': '"',    # 英文双引号
-            "'": "'",    # 英文单引号
-            '“': '”',    # 中文双引号
-            '‘': '’'     # 中文单引号
+            '"': '"',
+            "'": "'",
+            '“': '”',
+            '‘': '’'
         }
         
         for char in input_text:
@@ -273,7 +272,7 @@ class UgrepExecutor:
             self._apply_filters(cmd, file_filter)
         
         if not keywords:
-            cmd.extend(["-e", r"^\s*\S"])  # cmd.append(".")
+            cmd.extend(["-e", r"^\s*\S"])
         else:
             self._add_keywords(cmd, keywords)
         
@@ -364,18 +363,15 @@ class UgrepExecutor:
                 if hasattr(subprocess, 'CREATE_NO_WINDOW'):
                     kwargs['creationflags'] = subprocess.CREATE_NO_WINDOW
                 else:
-                    kwargs['creationflags'] = 0x08000000  # CREATE_NO_WINDOW constant
+                    kwargs['creationflags'] = 0x08000000
             
             if hasattr(subprocess, 'run'):
-                # Python 3.5+ with subprocess.run
                 result = subprocess.run(cmd, capture_output=True, text=True, 
                                       encoding='utf-8', errors='ignore', timeout=30, **kwargs)
                 return result.stdout, result.stderr
             else:
-                # Older Python versions with subprocess.Popen
                 process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                          universal_newlines=True, **kwargs)
-                # Note: timeout parameter is passed to communicate(), not to Popen constructor
                 stdout, stderr = process.communicate(timeout=30)
                 
                 if isinstance(stdout, bytes):
@@ -570,7 +566,6 @@ class SearchEngine:
         if self.scope in ["folder", "project"]:
             print("  📁 Folders: {0}".format(len(paths)))
         elif self.scope == "file":
-            # paths is a list, so check if it has items
             print("  📄 File: {0}".format(os.path.basename(paths[0]) if paths else "Unknown"))
         elif self.scope == "open_files":
             print("  📊 Files: {0}".format(len(paths)))
@@ -699,22 +694,16 @@ class DisplayFormatter:
     
     def format_results(self, results, keywords, scope):
         formatted = []
-        expanded_results = []  # 存储扩展后的结果信息
+        expanded_results = []
         
         for i, item in enumerate(results):
-            # 获取带emoji的完整行
             full_line_with_emojis = self._format_main_line(item['line'], keywords)
-            
-            # 将行拆分成多个片段
             segments = self._split_into_segments(full_line_with_emojis, item['line'], keywords)
             
             for seg_index, segment in enumerate(segments):
-                # 为每个片段创建显示条目
                 main_line = segment['display']
                 sub_line = self._format_sub_line(item, i, scope, seg_index, len(segments))
                 formatted.append([main_line, sub_line])
-                
-                # 保存扩展的结果信息，包含片段信息
                 expanded_item = item.copy()
                 expanded_item['segment_start'] = segment['start']
                 expanded_item['segment_end'] = segment['end']
@@ -727,23 +716,15 @@ class DisplayFormatter:
     def _format_main_line(self, line, keywords):
         if not keywords:
             return line.strip()
-        
-        # 去除行首尾空白
         line_stripped = line.strip()
         line_lower = line_stripped.lower()
-        
-        # 创建关键词到emoji的映射
         keyword_emoji_map = {}
         for i, keyword in enumerate(keywords):
             keyword_emoji_map[keyword.lower()] = KEYWORD_EMOJIS[i % len(KEYWORD_EMOJIS)]
-        
-        # 找到所有关键词的位置
         all_positions = []
         for keyword in keywords:
             keyword_lower = keyword.lower()
             emoji = keyword_emoji_map[keyword_lower]
-            
-            # 查找该关键词的所有出现位置
             pos = 0
             while True:
                 index = line_lower.find(keyword_lower, pos)
@@ -751,15 +732,9 @@ class DisplayFormatter:
                     break
                 all_positions.append((index, len(keyword), emoji))
                 pos = index + 1
-        
-        # 如果没有找到任何关键词，返回原文本
         if not all_positions:
             return line_stripped
-        
-        # 按位置排序（从后往前，避免插入emoji后影响后续位置）
         all_positions.sort(key=lambda x: x[0], reverse=True)
-        
-        # 构建结果字符串（从后往前插入emoji）
         result = line_stripped
         for pos, length, emoji in all_positions:
             result = result[:pos] + emoji + result[pos:]
@@ -770,8 +745,6 @@ class DisplayFormatter:
         """将带emoji的行拆分成多个片段，确保emoji+关键字对不被截断"""
         segments = []
         original_stripped = original_line.strip()
-        
-        # 如果行很短，不需要拆分
         if TextUtils.display_width(line_with_emojis) <= self.max_length:
             segments.append({
                 'display': line_with_emojis,
@@ -779,11 +752,7 @@ class DisplayFormatter:
                 'end': len(original_stripped)
             })
             return segments
-        
-        # 找到所有 emoji+关键字对 在修改后文本中的位置
         emoji_keyword_ranges = self._find_emoji_keyword_ranges(line_with_emojis, keywords)
-        
-        # 按照最大显示宽度进行分段
         current_pos = 0
         while current_pos < len(line_with_emojis):
             segment_end = self._find_safe_cut_position(
@@ -791,12 +760,9 @@ class DisplayFormatter:
             )
             
             if segment_end <= current_pos:
-                # 防止无限循环，至少取一个字符
                 segment_end = current_pos + 1
             
             segment_text = line_with_emojis[current_pos:segment_end]
-            
-            # 计算在原始文本中对应的位置（大概估算）
             orig_start = self._map_to_original_position(current_pos, line_with_emojis, original_stripped, keywords)
             orig_end = self._map_to_original_position(segment_end, line_with_emojis, original_stripped, keywords)
             
@@ -814,30 +780,21 @@ class DisplayFormatter:
         """找到所有emoji+关键字对在修改后文本中的位置范围"""
         ranges = []
         line_lower = line_with_emojis.lower()
-        
-        # 创建关键词到emoji的映射
         keyword_emoji_map = {}
         for i, keyword in enumerate(keywords):
             keyword_emoji_map[keyword.lower()] = KEYWORD_EMOJIS[i % len(KEYWORD_EMOJIS)]
-        
-        # 查找每个emoji+关键字对的位置
         for keyword in keywords:
             keyword_lower = keyword.lower()
             emoji = keyword_emoji_map[keyword_lower]
-            pattern = emoji + keyword_lower  # emoji紧接着关键字
+            pattern = emoji + keyword_lower
             
             pos = 0
             while True:
-                # 不区分大小写查找
                 found_pos = line_lower.find(pattern.lower(), pos)
                 if found_pos == -1:
                     break
-                
-                # 记录emoji+关键字对的范围
                 ranges.append((found_pos, found_pos + len(pattern)))
                 pos = found_pos + 1
-        
-        # 按位置排序
         ranges.sort()
         return ranges
 
@@ -845,8 +802,6 @@ class DisplayFormatter:
         """找到安全的截断位置，不会截断emoji+关键字对"""
         if start_pos >= len(text):
             return len(text)
-        
-        # 计算理想的截断位置
         ideal_end = start_pos
         current_width = 0
         
@@ -857,30 +812,19 @@ class DisplayFormatter:
                 break
             current_width += char_width
             ideal_end += 1
-        
-        # 检查理想截断位置是否会截断emoji+关键字对
         safe_end = ideal_end
         for range_start, range_end in emoji_keyword_ranges:
-            # 如果截断位置在某个emoji+关键字对的中间
             if range_start < ideal_end < range_end:
-                # 如果整个emoji+关键字对都在当前段的范围内
                 if range_start >= start_pos:
-                    # 截断位置移动到这个对的开始位置
                     safe_end = min(safe_end, range_start)
                 else:
-                    # 如果emoji+关键字对跨越了段的开始位置，则移动到对的结束位置
                     safe_end = range_end
                     break
-        
-        # 确保至少有一些内容
         if safe_end <= start_pos:
-            # 找到下一个安全位置
             for range_start, range_end in emoji_keyword_ranges:
                 if range_start > start_pos:
                     safe_end = range_end
                     break
-            
-            # 如果还是没有找到，至少取到下一个emoji+关键字对结束
             if safe_end <= start_pos and emoji_keyword_ranges:
                 next_safe = start_pos + 1
                 for range_start, range_end in emoji_keyword_ranges:
@@ -889,7 +833,7 @@ class DisplayFormatter:
                         break
                 safe_end = min(next_safe, len(text))
             elif safe_end <= start_pos:
-                safe_end = min(start_pos + 10, len(text))  # 至少取10个字符
+                safe_end = min(start_pos + 10, len(text))
         
         return min(safe_end, len(text))
 
@@ -899,60 +843,43 @@ class DisplayFormatter:
             return 0
         if pos_in_modified >= len(line_with_emojis):
             return len(original_line.strip())
-        
-        # 计算到指定位置为止插入了多少个emoji
         emoji_count = 0
         modified_pos = 0
         original_lower = original_line.strip().lower()
-        
-        # 创建关键词到emoji的映射
         keyword_emoji_map = {}
         for i, keyword in enumerate(keywords):
             keyword_emoji_map[keyword.lower()] = KEYWORD_EMOJIS[i % len(KEYWORD_EMOJIS)]
-        
-        # 遍历原始文本，计算emoji插入
         original_pos = 0
         while original_pos < len(original_lower) and modified_pos < pos_in_modified:
-            # 检查当前位置是否是某个关键字的开始
             emoji_inserted = False
             for keyword in keywords:
                 keyword_lower = keyword.lower()
                 if (original_pos + len(keyword_lower) <= len(original_lower) and
                     original_lower[original_pos:original_pos + len(keyword_lower)] == keyword_lower):
-                    
-                    # 如果modified位置还没到这个emoji位置，说明在emoji之前
                     if modified_pos < pos_in_modified:
                         emoji_count += 1
-                        modified_pos += 1  # emoji占1个位置
+                        modified_pos += 1
                         emoji_inserted = True
                     break
-            
-            # 移动一个字符
             if modified_pos < pos_in_modified:
                 modified_pos += 1
             original_pos += 1
             
             if emoji_inserted:
-                # 跳过已经处理的关键字字符
                 for keyword in keywords:
                     keyword_lower = keyword.lower()
                     if (original_pos <= len(original_lower) - len(keyword_lower) and
                         original_lower[original_pos:original_pos + len(keyword_lower)] == keyword_lower):
-                        original_pos += len(keyword_lower) - 1  # -1因为外层循环会+1
+                        original_pos += len(keyword_lower) - 1
                         modified_pos += len(keyword_lower) - 1
                         break
-        
-        # 原始位置 = 修改后位置 - emoji数量
         result = max(0, min(pos_in_modified - emoji_count, len(original_line.strip())))
         return result
     
     def _extract_segment_with_emoji(self, full_line, original_line, start, end, keywords):
         """从带emoji的完整行中提取指定片段"""
-        # 这里需要计算emoji偏移量
         emoji_offset = 0
         original_lower = original_line.lower()
-        
-        # 计算start位置之前的emoji数量
         for i, keyword in enumerate(keywords):
             keyword_lower = keyword.lower()
             pos = 0
@@ -962,12 +889,8 @@ class DisplayFormatter:
                     break
                 emoji_offset += 1
                 pos = index + 1
-        
-        # 提取片段（考虑emoji偏移）
         adjusted_start = start + emoji_offset
         adjusted_end = end + emoji_offset
-        
-        # 计算片段内的emoji数量
         for i, keyword in enumerate(keywords):
             keyword_lower = keyword.lower()
             pos = start
@@ -988,8 +911,6 @@ class DisplayFormatter:
             parts.append(str(item['line_number']))
         
         parts.append("⚡ {0}".format(index + 1))
-        
-        # 如果有多个片段，显示片段信息
         if total_segments > 1:
             parts.append("📍 {0}/{1}".format(segment_index + 1, total_segments))
         
@@ -1032,13 +953,10 @@ class CleanupManager:
             return
         
         try:
-            # 获取所有相关的区域键
             all_keys = []
             for key in list(view.settings().to_dict().keys()):
                 if key.startswith("QuickLineNav"):
                     all_keys.append(key)
-            
-            # 清理无效区域
             for key in all_keys:
                 try:
                     regions = view.get_regions(key)
@@ -1091,7 +1009,6 @@ class UIText:
 class QuickLineNavigatorMenuCommand(sublime_plugin.WindowCommand):
     def run(self):
         menu_items = [
-            # 分组标题和命令
             ["—"*10 + " 🔍 Search Commands  " + "—"*10, "-"*29 + "  Search in different scopes  " + "-"*30],
             ["📄 Search in Current File", "Search keywords in the active file"],
             ["📁 Search in Project", "Search keywords in all project folders"],
@@ -1111,23 +1028,21 @@ class QuickLineNavigatorMenuCommand(sublime_plugin.WindowCommand):
             ["🧹 Clear All Highlights", "Remove highlights from all views"],
             ["🔦 Clear Current View Highlights", "Remove highlights from current view"]
         ]
-        
-        # 对应的命令映射
         command_map = {
-            1: ("quick_line_navigator", {"scope": "file"}),      # 📄 Search in Current File
-            2: ("quick_line_navigator", {"scope": "project"}),   # 📁 Search in Project
-            3: ("quick_line_navigator", {"scope": "folder"}),    # 📂 Search in Folder
-            4: ("quick_line_navigator_open_files", {}),          # 📑 Search in Open Files
+            1: ("quick_line_navigator", {"scope": "file"}),
+            2: ("quick_line_navigator", {"scope": "project"}),
+            3: ("quick_line_navigator", {"scope": "folder"}),
+            4: ("quick_line_navigator_open_files", {}),
             
-            6: ("toggle_extension_filters", {}),                 # 🔄 Toggle Filters (Permanent)
-            7: ("toggle_extension_filters_temporary", {}),       # ⏱️ Toggle Filters (Temporary)
-            8: ("show_filter_status", {}),                       # 📊 Show Filter Status
+            6: ("toggle_extension_filters", {}),
+            7: ("toggle_extension_filters_temporary", {}),
+            8: ("show_filter_status", {}),
             
-            10: ("set_search_folder", {}),                       # 📍 Set Search Folder
-            11: ("clear_search_folder", {}),                     # 🗑️ Clear Search Folder
+            10: ("set_search_folder", {}),
+            11: ("clear_search_folder", {}),
             
-            13: ("clear_keyword_highlights", {}),                # 🧹 Clear All Highlights
-            14: ("clear_current_view_highlights", {})           # 🔦 Clear Current View Highlights
+            13: ("clear_keyword_highlights", {}),
+            14: ("clear_current_view_highlights", {})
         }
         
         def on_select(index):
@@ -1148,8 +1063,8 @@ class QuickLineNavigatorMenuCommand(sublime_plugin.WindowCommand):
 class QuickLineNavigatorCommand(sublime_plugin.WindowCommand):
     def __init__(self, window):
         super().__init__(window)
-        self.current_segment_key = None  # 添加实例变量来追踪当前的片段高亮键
-        self.highlighted_view_id = None  # 追踪哪个视图有片段高亮
+        self.current_segment_key = None
+        self.highlighted_view_id = None
 
     def run(self, scope="file"):
         self.scope = scope
@@ -1256,7 +1171,6 @@ class QuickLineNavigatorCommand(sublime_plugin.WindowCommand):
                         sublime.set_timeout(highlight_when_ready, 50)
                     else:
                         highlighter.highlight(view, keywords)
-                        # 高亮特定片段
                         self._highlight_segment(view, item, line_number)
                 
                 highlight_when_ready()
@@ -1275,7 +1189,6 @@ class QuickLineNavigatorCommand(sublime_plugin.WindowCommand):
                     else:
                         view.run_command("goto_line", {"line": line_number + 1})
                         highlighter.highlight(view, keywords)
-                        # 高亮特定片段
                         self._highlight_segment(view, item, line_number)
                 
                 goto_line()
@@ -1292,26 +1205,19 @@ class QuickLineNavigatorCommand(sublime_plugin.WindowCommand):
         """高亮显示特定的文本片段"""
         if 'segment_start' not in item or 'segment_end' not in item:
             return
-        
-        # 清除之前的片段高亮
         if self.current_segment_key and self.highlighted_view_id:
-            # 尝试在之前的视图中清除高亮
             for window in sublime.windows():
                 for v in window.views():
                     if v.id() == self.highlighted_view_id:
                         v.erase_regions(self.current_segment_key)
                         break
-        
-        # 获取行的区域
         line_region = view.line(view.text_point(line_number, 0))
         line_start = line_region.begin()
-        
-        # 计算片段的实际位置
-        segment_start = line_start + item['segment_start']
-        segment_end = line_start + item['segment_end']
+        line_text = view.substr(line_region)
+        indent_amount = len(line_text) - len(line_text.lstrip())
+        segment_start = line_start + indent_amount + item['segment_start']
+        segment_end = line_start + indent_amount + item['segment_end']
         segment_region = sublime.Region(segment_start, segment_end)
-        
-        # 添加白色边框高亮
         key = "QuickLineNavSegment_{0}".format(view.id())
         self.current_segment_key = key
         self.highlighted_view_id = view.id()
@@ -1323,11 +1229,6 @@ class QuickLineNavigatorCommand(sublime_plugin.WindowCommand):
             "",
             sublime.DRAW_NO_FILL | sublime.DRAW_NO_OUTLINE | sublime.DRAW_SOLID_UNDERLINE
         )
-        
-        # 不再设置自动清除定时器
-        # sublime.set_timeout(lambda: view.erase_regions(key), 3000)
-        
-        # 将视图滚动到片段位置
         view.show(segment_region, True)
 
 
@@ -1354,7 +1255,7 @@ class QuickLineNavigatorOpenFilesCommand(sublime_plugin.WindowCommand):
                     break
         
         self.window.show_input_panel(
-            UIText.get_search_prompt('open_files'),  # 使用统一的提示文字
+            UIText.get_search_prompt('open_files'),
             initial_text,
             self.on_done,
             self.on_change,
@@ -1515,7 +1416,7 @@ class ShowFilterStatusCommand(sublime_plugin.WindowCommand):
         
         if whitelist:
             status_lines.append("\nWhitelist Extensions:")
-            for ext in whitelist[:10]:  # 显示前10个
+            for ext in whitelist[:10]:
                 status_lines.append("  - {0}".format(ext))
             if len(whitelist) > 10:
                 status_lines.append("  ... and {0} more".format(len(whitelist) - 10))
@@ -1630,7 +1531,7 @@ class ClearCurrentViewHighlightsCommand(sublime_plugin.WindowCommand):
 class QuickLineNavigatorEventListener(sublime_plugin.EventListener):
     def __init__(self):
         super().__init__()
-        self.last_row = {}  # 存储每个视图的上一个行号
+        self.last_row = {}
     
     def on_selection_modified(self, view):
         """当选择改变时，检查是否需要清除片段高亮和所有关键词高亮"""
@@ -1638,30 +1539,19 @@ class QuickLineNavigatorEventListener(sublime_plugin.EventListener):
             return
         
         view_id = view.id()
-        
-        # 获取当前光标所在行
         try:
             current_row = view.rowcol(view.sel()[0].begin())[0] if view.sel() else -1
         except:
             current_row = -1
-        
-        # 获取上一次的行号
         last_row = self.last_row.get(view_id, -1)
-        
-        # 如果行号发生变化，清除片段高亮和所有关键词高亮
         if current_row != last_row and last_row != -1:
-            # 清除该视图中的片段高亮
             segment_key = "QuickLineNavSegment_{0}".format(view_id)
             try:
                 view.erase_regions(segment_key)
             except:
                 pass
-            
-            # 清除所有视图中的关键词高亮
             highlighter.clear_all()
             cleanup_manager.cleanup_all()
-        
-        # 更新行号记录
         self.last_row[view_id] = current_row
     
     def on_close(self, view):
@@ -1670,11 +1560,7 @@ class QuickLineNavigatorEventListener(sublime_plugin.EventListener):
             view_id = view.id()
             highlighter.clear(view)
             cleanup_manager.cleanup_view(view)
-            
-            # 清除行号记录
             self.last_row.pop(view_id, None)
-            
-            # 清除片段高亮
             segment_key = "QuickLineNavSegment_{0}".format(view_id)
             try:
                 view.erase_regions(segment_key)

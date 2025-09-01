@@ -1031,40 +1031,36 @@ class UIText:
 class QuickLineNavigatorMenuCommand(sublime_plugin.WindowCommand):
     def run(self):
         menu_items = [
-            ["—"*10 + " 🔍 Search Commands  " + "—"*10, "-"*29 + "  Search in different scopes  " + "-"*30],
-            ["📄 Search in Current File", "Search keywords in the active file"],
-            ["📁 Search in Project", "Search keywords in all project folders"],
-            ["📂 Search in Folder", "Search keywords in specific folder"],
-            ["📑 Search in Open Files", "Search keywords in all open files"],
+            ["🔍 Search Commands 1 📄 Search in Current File"],
+            ["🔍 Search Commands 2 📁 Search in Project"],
+            ["🔍 Search Commands 3 📂 Search in Folder"],
+            ["🔍 Search Commands 4 📑 Search in Open Files"],
             
-            ["—"*10 + " 🎛️ Filter Controls " + "—"*12, "-"*29 + "  Manage file extension filters  " + "-"*26],
-            ["🔄 Toggle Filters (Permanent)", "Enable/disable extension filters permanently"],
-            ["⏱️ Toggle Filters (Temporary)", "Enable/disable extension filters for this session"],
-            ["📊 Show Filter Status", "Display current filter settings"],
+            ["🎛️ Filter Controls 5 🔄 Toggle Filters (Permanent)"],
+            ["🎛️ Filter Controls 6 ⏱️ Toggle Filters (Temporary)"],
+            ["🎛️ Filter Controls 7 📊 Show Filter Status"],
             
-            ["—"*10 + " 📁 Folder Settings " + "—"*12, "-"*29 + "  Configure search folders  " + "-"*31],
-            ["📍 Set Search Folder", "Choose a specific folder for searches"],
-            ["🗑️ Clear Search Folder", "Remove custom search folder"],
+            ["📁 Folder Settings 8 📍 Set Search Folder"],
+            ["📁 Folder Settings 9 🗑️ Clear Search Folder"],
             
-            ["—"*10 + " ✨ Highlight Management " + "—"*8, "-"*29 + "  Control keyword highlighting  " + "-"*25],
-            ["🧹 Clear All Highlights", "Remove highlights from all views"],
-            ["🔦 Clear Current View Highlights", "Remove highlights from current view"]
+            ["✨ Highlight Management 0 🧹 Clear All Highlights"],
+            ["✨ Highlight Management - 🔦 Clear Current View Highlights"]
         ]
         command_map = {
-            1: ("quick_line_navigator", {"scope": "file"}),
-            2: ("quick_line_navigator", {"scope": "project"}),
-            3: ("quick_line_navigator", {"scope": "folder"}),
-            4: ("quick_line_navigator_open_files", {}),
+            0: ("quick_line_navigator", {"scope": "file"}),
+            1: ("quick_line_navigator", {"scope": "project"}),
+            2: ("quick_line_navigator", {"scope": "folder"}),
+            3: ("quick_line_navigator_open_files", {}),
             
-            6: ("toggle_extension_filters", {}),
-            7: ("toggle_extension_filters_temporary", {}),
-            8: ("show_filter_status", {}),
+            4: ("toggle_extension_filters", {}),
+            5: ("toggle_extension_filters_temporary", {}),
+            6: ("show_filter_status", {}),
             
-            10: ("set_search_folder", {}),
-            11: ("clear_search_folder", {}),
+            7: ("set_search_folder", {}),
+            8: ("clear_search_folder", {}),
             
-            13: ("clear_keyword_highlights", {}),
-            14: ("clear_current_view_highlights", {})
+            9: ("clear_keyword_highlights", {}),
+            10: ("clear_current_view_highlights", {})
         }
         
         def on_select(index):
@@ -1078,7 +1074,9 @@ class QuickLineNavigatorMenuCommand(sublime_plugin.WindowCommand):
         self.window.show_quick_panel(
             menu_items,
             on_select,
-            sublime.KEEP_OPEN_ON_FOCUS_LOST
+            sublime.KEEP_OPEN_ON_FOCUS_LOST,
+            4,
+            None
         )
 
 

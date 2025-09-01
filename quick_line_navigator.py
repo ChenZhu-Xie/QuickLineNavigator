@@ -967,7 +967,8 @@ class BaseQuickLineNavigatorCommand(sublime_plugin.WindowCommand):
         self.input_view = None
         self.settings = Settings()
         self.original_keywords = ""
-        self.scope = None  
+        self.scope = None
+        self._border_timer_id = 0
     
     def check_active_panel(self):
         """检查是否有活动的输入面板"""
@@ -1089,6 +1090,8 @@ class BaseQuickLineNavigatorCommand(sublime_plugin.WindowCommand):
             active_input_panels[window_id]['is_active'] = False
             del active_input_panels[window_id]
         
+        self._border_timer_id += 1
+        
         self.clear_highlights()
     
     def process_search_done(self, input_text, results):
@@ -1173,16 +1176,28 @@ class BaseQuickLineNavigatorCommand(sublime_plugin.WindowCommand):
         total_segments = item.get('total_segments', 1)
         if total_segments > 1:
             border_key = key + "_border"
+            
+            self._border_timer_id += 1
+            current_timer_id = self._border_timer_id
+            
             view.add_regions(
                 border_key,
                 [line_region],
-                "region.grayish",  
+                "region.grayish",
                 "",
-                sublime.DRAW_NO_FILL | sublime.DRAW_EMPTY  
+                sublime.DRAW_NO_FILL | sublime.DRAW_EMPTY
             )
+            
+            def clear_border():
+                if current_timer_id == self._border_timer_id and view and view.is_valid():
+                    try:
+                        view.erase_regions(border_key)
+                    except:
+                        pass
+            
+            sublime.set_timeout(clear_border, 1000)
         
         view.show(segment_region, True)
-
     
     def handle_quick_panel_cancel(self, formatted_keywords):
         """处理 quick panel 取消的情况"""
@@ -1762,6 +1777,7 @@ class QuickLineNavigatorEventListener(sublime_plugin.EventListener):
     def __init__(self):
         super().__init__()
         self.last_row = {}
+        self.border_timers = {}
     
     def on_selection_modified(self, view):
         if not view or not view.is_valid():
@@ -1786,11 +1802,14 @@ class QuickLineNavigatorEventListener(sublime_plugin.EventListener):
         last_row = self.last_row.get(view_id, -1)
         
         if current_row != last_row and last_row != -1:
+            if view_id in self.border_timers:
+                self.border_timers[view_id] = None
+                
             segment_key = "QuickLineNavSegment_{0}".format(view_id)
             border_key = segment_key + "_border"
             try:
                 view.erase_regions(segment_key)
-                view.erase_regions(border_key)  
+                view.erase_regions(border_key)
             except:
                 pass
             

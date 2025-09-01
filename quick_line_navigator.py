@@ -30,6 +30,8 @@ HIGHLIGHT_SCOPES = ['region.redish', 'region.bluish', 'region.yellowish', 'regio
 HIGHLIGHT_ICONS = ['dot', 'circle', 'cross', 'bookmark', 'dot', 'circle', 'bookmark']
 KEYWORD_EMOJIS = ['🟥', '🟦', '🟨', '🟩', '🟪', '🟧', '⬜']
 
+active_input_panels = {}
+
 
 class Settings:
     def __init__(self):
@@ -175,38 +177,62 @@ class TextUtils:
     
     @staticmethod
     def parse_keywords(input_text):
+        """解析关键词，只有反引号是分界符，其他引号都是普通字符"""
+        if not input_text:
+            return []
+        
         keywords = []
         current = ""
-        in_quotes = False
-        quote_char = None
-        quote_pairs = {
-            '"': '"',
-            "'": "'",
-            '“': '”',
-            '‘': '’'
-        }
+        in_backticks = False
         
-        for char in input_text:
-            if char in quote_pairs and not in_quotes:
-                in_quotes = True
-                quote_char = quote_pairs[char]
-            elif char == quote_char and in_quotes:
-                in_quotes = False
+        i = 0
+        while i < len(input_text):
+            char = input_text[i]
+            
+            if char == '`' and not in_backticks:
+                if current.strip():
+                    keywords.append(current.strip())
+                    current = ""
+                
+                in_backticks = True
+                i += 1
+                continue
+                
+            elif char == '`' and in_backticks:
+                in_backticks = False
                 if current.strip():
                     keywords.append(current.strip())
                 current = ""
-                quote_char = None
-            elif char == ' ' and not in_quotes:
+                i += 1
+                continue
+            
+            elif char == ' ' and not in_backticks:
                 if current.strip():
                     keywords.append(current.strip())
                 current = ""
+                i += 1
+                continue
+            
             else:
                 current += char
+                i += 1
         
         if current.strip():
             keywords.append(current.strip())
         
-        return [kw for kw in keywords if kw]
+        final_keywords = []
+        for kw in keywords:
+            if kw and ('\r' in kw or '\n' in kw):
+                lines = kw.replace('\r\n', '\n').replace('\r', '\n').split('\n')
+                for line in lines:
+                    line = line.strip()
+                    if line:  
+                        final_keywords.append(line)
+            elif kw:
+                final_keywords.append(kw)
+        
+        return final_keywords
+
 
 class UgrepExecutor:
     def __init__(self):
@@ -261,7 +287,7 @@ class UgrepExecutor:
         if not self.path:
             return []
         
-        cmd = [self.path, "-n", "-H", "--color=never", "-r", "-I", "-i"]
+        cmd = [self.path, "-n", "-H", "--color=never", "-r", "-I", "-i", "-F"]
         
         if not file_filter.enabled:
             critical_blacklist = ["*.sublime-workspace", "*.sublime-project", "*.git", "*.svn", "*.hg",
@@ -272,13 +298,14 @@ class UgrepExecutor:
             self._apply_filters(cmd, file_filter)
         
         if not keywords:
+            cmd.remove("-F")
             cmd.extend(["-e", r"^\s*\S"])
         else:
             self._add_keywords(cmd, keywords)
         
         cmd.extend(paths if isinstance(paths, list) else [paths])
         
-        print("  🔧 Ugrep: {0}".format(" ".join(self._format_arg(arg, i == 0) for i, arg in enumerate(cmd))))
+        print("  🔧 Ugrep: {0}".format(" ".join(str(arg) for arg in cmd)))
         
         output, error = self._execute(cmd)
         if error:
@@ -292,6 +319,14 @@ class UgrepExecutor:
             print("  🔧 Post-filtered to {0} lines".format(len(results)))
         
         return results
+
+    def _add_keywords(self, cmd, keywords):
+        keywords = [kw for kw in keywords if kw]
+        if len(keywords) == 1:
+            cmd.append(keywords[0])
+        else:
+            for kw in keywords:
+                cmd.extend(["--and", "-e", kw])
     
     def _apply_filters(self, cmd, file_filter):
         applied_whitelist = False
@@ -328,18 +363,6 @@ class UgrepExecutor:
         
         for pattern in blacklist:
             cmd.extend(["--exclude", pattern])
-    
-    def _add_keywords(self, cmd, keywords):
-        keywords = [self._escape_keyword(kw) for kw in keywords if kw]
-        if len(keywords) == 1:
-            cmd.append(keywords[0])
-        else:
-            for kw in keywords:
-                cmd.extend(["--and", "-e", kw])
-    
-    def _escape_keyword(self, keyword):
-        special = r'\.^$*+?{}[]|()'
-        return ''.join('\\' + ch if ch in special else ch for ch in keyword)
     
     def _format_arg(self, arg, is_first=False):
         if is_first:
@@ -592,7 +615,8 @@ class Highlighter:
         
         view_id = view.id()
         
-        if self.cache.get(view_id) == keywords:
+        cache_key = tuple(keywords)
+        if self.cache.get(view_id) == cache_key:
             return
         
         if view.is_loading() or view.size() == 0:
@@ -606,7 +630,8 @@ class Highlighter:
                 continue
             
             try:
-                regions = view.find_all(re.escape(keyword), sublime.IGNORECASE)
+                regions = view.find_all(keyword, sublime.IGNORECASE | sublime.LITERAL)
+                
                 if regions:
                     key = "{0}_{1}_{2}".format(self.key_base, view_id, i)
                     self.keys.add(key)
@@ -615,12 +640,14 @@ class Highlighter:
                     icon = HIGHLIGHT_ICONS[i % len(HIGHLIGHT_ICONS)]
                     
                     view.add_regions(key, regions, scope, icon, sublime.PERSISTENT)
-            except:
+            except Exception as e:
+                print("Error highlighting keyword '{}': {}".format(keyword, e))
                 continue
         
         if self.keys:
             self.views.add(view_id)
-            self.cache[view_id] = keywords[:]
+            self.cache[view_id] = cache_key
+
     
     def highlight_scope(self, scope, keywords, window, results=None):
         if not keywords:
@@ -742,7 +769,6 @@ class DisplayFormatter:
         return result
     
     def _split_into_segments(self, line_with_emojis, original_line, keywords):
-        """将带emoji的行拆分成多个片段，确保emoji+关键字对不被截断"""
         segments = []
         original_stripped = original_line.strip()
         if TextUtils.display_width(line_with_emojis) <= self.max_length:
@@ -777,7 +803,6 @@ class DisplayFormatter:
         return segments
 
     def _find_emoji_keyword_ranges(self, line_with_emojis, keywords):
-        """找到所有emoji+关键字对在修改后文本中的位置范围"""
         ranges = []
         line_lower = line_with_emojis.lower()
         keyword_emoji_map = {}
@@ -799,7 +824,6 @@ class DisplayFormatter:
         return ranges
 
     def _find_safe_cut_position(self, text, start_pos, max_width, emoji_keyword_ranges):
-        """找到安全的截断位置，不会截断emoji+关键字对"""
         if start_pos >= len(text):
             return len(text)
         ideal_end = start_pos
@@ -838,7 +862,6 @@ class DisplayFormatter:
         return min(safe_end, len(text))
 
     def _map_to_original_position(self, pos_in_modified, line_with_emojis, original_line, keywords):
-        """将修改后文本中的位置映射回原始文本中的位置"""
         if pos_in_modified <= 0:
             return 0
         if pos_in_modified >= len(line_with_emojis):
@@ -877,7 +900,6 @@ class DisplayFormatter:
         return result
     
     def _extract_segment_with_emoji(self, full_line, original_line, start, end, keywords):
-        """从带emoji的完整行中提取指定片段"""
         emoji_offset = 0
         original_lower = original_line.lower()
         for i, keyword in enumerate(keywords):
@@ -1065,8 +1087,52 @@ class QuickLineNavigatorCommand(sublime_plugin.WindowCommand):
         super().__init__(window)
         self.current_segment_key = None
         self.highlighted_view_id = None
-
+        self.input_view = None
+    
     def run(self, scope="file"):
+        global active_input_panels
+        window_id = self.window.id()
+        
+        if window_id in active_input_panels and active_input_panels[window_id]['scope'] == scope:
+            saved_input_view = active_input_panels[window_id].get('input_view')
+            if saved_input_view and saved_input_view.is_valid():
+                self.input_view = saved_input_view
+        
+        if (window_id in active_input_panels and 
+            active_input_panels[window_id]['scope'] == scope and
+            self.input_view and 
+            self.input_view.is_valid()):
+            
+            view = self.window.active_view()
+            if view:
+                for sel in view.sel():
+                    if not sel.empty():
+                        selected_text = view.substr(sel)
+                        if ' ' in selected_text or "'" in selected_text:
+                            selected_text = "`{}`".format(selected_text)
+                        
+                        current_text = self.input_view.substr(sublime.Region(0, self.input_view.size()))
+                        
+                        if current_text and not current_text.endswith(' '):
+                            new_text = "{} {}".format(current_text, selected_text)
+                        else:
+                            new_text = "{}{}".format(current_text, selected_text)
+                        
+                        self.input_view.run_command("select_all")
+                        self.input_view.run_command("insert", {"characters": new_text})
+                        
+                        self.input_view.sel().clear()
+                        end_point = self.input_view.size()
+                        self.input_view.sel().add(sublime.Region(end_point, end_point))
+                        if not new_text.endswith(' '):
+                            self.input_view.run_command("insert", {"characters": " "})
+                        
+                        active_input_panels[window_id]['current_text'] = self.input_view.substr(sublime.Region(0, self.input_view.size()))
+                        
+                        self.window.focus_view(self.input_view)
+                        break
+            return
+        
         self.scope = scope
         self.settings = Settings()
         self.original_keywords = ""
@@ -1094,21 +1160,54 @@ class QuickLineNavigatorCommand(sublime_plugin.WindowCommand):
         
         initial_text = ""
         view = self.window.active_view()
+        
         if view:
             for sel in view.sel():
                 if not sel.empty():
-                    initial_text = view.substr(sel)
+                    selected_text = view.substr(sel)
+                    if '`' in selected_text:
+                        selected_text = '"{}"'.format(selected_text)
+                    elif ' ' in selected_text:
+                        selected_text = '`{}`'.format(selected_text)
+                    
+                    initial_text = selected_text
                     break
+
         
-        self.window.show_input_panel(
+        active_input_panels[window_id] = {
+            'scope': scope,
+            'current_text': initial_text,
+            'command_instance': self,
+            'is_active': True  
+        }
+
+        self.input_view = self.window.show_input_panel(
             UIText.get_search_prompt(scope),
             initial_text,
             self.on_done,
             self.on_change,
             self.on_cancel
         )
+
+        if window_id in active_input_panels:
+            active_input_panels[window_id]['input_view'] = self.input_view
+
+        if initial_text:
+            def setup_cursor():
+                if self.input_view and self.input_view.is_valid():
+                    if window_id in active_input_panels:
+                        self.input_view.sel().clear()
+                        end_point = self.input_view.size()
+                        self.input_view.sel().add(sublime.Region(end_point, end_point))
+                        self.input_view.run_command("insert", {"characters": " "})
+                        active_input_panels[window_id]['current_text'] = self.input_view.substr(sublime.Region(0, self.input_view.size()))
+            
+            sublime.set_timeout(setup_cursor, 10)
     
     def on_done(self, input_text):
+        global active_input_panels
+        window_id = self.window.id()
+        
         self.original_keywords = input_text
         keywords = TextUtils.parse_keywords(input_text) if input_text else []
         
@@ -1124,11 +1223,37 @@ class QuickLineNavigatorCommand(sublime_plugin.WindowCommand):
         
         if not results:
             sublime.status_message(UIText.get_status_message('no_results'))
+            self.window.show_input_panel(
+                UIText.get_search_prompt(self.scope),
+                input_text,
+                self.on_done,
+                self.on_change,
+                self.on_cancel
+            )
             return
         
+        if window_id in active_input_panels:
+            active_input_panels[window_id]['is_active'] = False
+            del active_input_panels[window_id]
+        
         self._show_results(results, keywords)
+
     
+    def on_cancel(self):
+        global active_input_panels
+        window_id = self.window.id()
+        if window_id in active_input_panels:
+            active_input_panels[window_id]['is_active'] = False  
+            del active_input_panels[window_id]
+
+        highlighter.clear(self.window.active_view())
+
     def on_change(self, input_text):
+        global active_input_panels
+        window_id = self.window.id()
+        if window_id in active_input_panels:
+            active_input_panels[window_id]['current_text'] = input_text
+
         if self.settings.get("preview_on_highlight", True):
             if not input_text or not input_text.strip():
                 highlighter.clear(self.window.active_view())
@@ -1139,9 +1264,6 @@ class QuickLineNavigatorCommand(sublime_plugin.WindowCommand):
                 highlighter.highlight(self.window.active_view(), keywords)
             else:
                 highlighter.clear(self.window.active_view())
-    
-    def on_cancel(self):
-        highlighter.clear(self.window.active_view())
     
     def _search_file(self, keywords):
         search = SearchEngine(self.settings, "file", self.window)
@@ -1202,7 +1324,6 @@ class QuickLineNavigatorCommand(sublime_plugin.WindowCommand):
         )
 
     def _highlight_segment(self, view, item, line_number):
-        """高亮显示特定的文本片段"""
         if 'segment_start' not in item or 'segment_end' not in item:
             return
         if self.current_segment_key and self.highlighted_view_id:
@@ -1233,7 +1354,54 @@ class QuickLineNavigatorCommand(sublime_plugin.WindowCommand):
 
 
 class QuickLineNavigatorOpenFilesCommand(sublime_plugin.WindowCommand):
+    def __init__(self, window):
+        super().__init__(window)
+        self.input_view = None
+
     def run(self):
+        global active_input_panels
+        window_id = self.window.id()
+        
+        if window_id in active_input_panels and active_input_panels[window_id]['scope'] == 'open_files':
+            saved_input_view = active_input_panels[window_id].get('input_view')
+            if saved_input_view and saved_input_view.is_valid():
+                self.input_view = saved_input_view
+        
+        if (window_id in active_input_panels and 
+            active_input_panels[window_id]['scope'] == 'open_files' and
+            self.input_view and 
+            self.input_view.is_valid()):
+            
+            view = self.window.active_view()
+            if view:
+                for sel in view.sel():
+                    if not sel.empty():
+                        selected_text = view.substr(sel)
+                        if ' ' in selected_text or "'" in selected_text:
+                            selected_text = "`{}`".format(selected_text)
+                        
+                        current_text = self.input_view.substr(sublime.Region(0, self.input_view.size()))
+                        
+                        if current_text and not current_text.endswith(' '):
+                            new_text = "{} {}".format(current_text, selected_text)
+                        else:
+                            new_text = "{}{}".format(current_text, selected_text)
+                        
+                        self.input_view.run_command("select_all")
+                        self.input_view.run_command("insert", {"characters": new_text})
+                        
+                        self.input_view.sel().clear()
+                        end_point = self.input_view.size()
+                        self.input_view.sel().add(sublime.Region(end_point, end_point))
+                        if not new_text.endswith(' '):
+                            self.input_view.run_command("insert", {"characters": " "})
+                        
+                        active_input_panels[window_id]['current_text'] = self.input_view.substr(sublime.Region(0, self.input_view.size()))
+                        
+                        self.window.focus_view(self.input_view)
+                        break
+            return
+        
         self.settings = Settings()
         self.original_keywords = ""
         
@@ -1248,21 +1416,53 @@ class QuickLineNavigatorOpenFilesCommand(sublime_plugin.WindowCommand):
         
         initial_text = ""
         view = self.window.active_view()
+        
         if view:
             for sel in view.sel():
                 if not sel.empty():
-                    initial_text = view.substr(sel)
+                    selected_text = view.substr(sel)
+                    if '`' in selected_text:
+                        selected_text = '"{}"'.format(selected_text)
+                    elif ' ' in selected_text:
+                        selected_text = '`{}`'.format(selected_text)
+                    
+                    initial_text = selected_text
                     break
         
-        self.window.show_input_panel(
+        active_input_panels[window_id] = {
+            'scope': 'open_files',
+            'current_text': initial_text,
+            'command_instance': self,
+            'is_active': True  
+        }
+        
+        self.input_view = self.window.show_input_panel(
             UIText.get_search_prompt('open_files'),
             initial_text,
             self.on_done,
             self.on_change,
             self.on_cancel
         )
+        
+        if window_id in active_input_panels:
+            active_input_panels[window_id]['input_view'] = self.input_view
+        
+        if initial_text:
+            def setup_cursor():
+                if self.input_view and self.input_view.is_valid():
+                    if window_id in active_input_panels:
+                        self.input_view.sel().clear()
+                        end_point = self.input_view.size()
+                        self.input_view.sel().add(sublime.Region(end_point, end_point))
+                        self.input_view.run_command("insert", {"characters": " "})
+                        active_input_panels[window_id]['current_text'] = self.input_view.substr(sublime.Region(0, self.input_view.size()))
+                        
+            sublime.set_timeout(setup_cursor, 10)
     
     def on_done(self, input_text):
+        global active_input_panels
+        window_id = self.window.id()
+        
         self.original_keywords = input_text
         keywords = TextUtils.parse_keywords(input_text) if input_text else []
         
@@ -1276,11 +1476,28 @@ class QuickLineNavigatorOpenFilesCommand(sublime_plugin.WindowCommand):
         
         if not results:
             sublime.status_message(UIText.get_status_message('no_results_in_scope', scope='open files'))
+            self.window.show_input_panel(
+                UIText.get_search_prompt('open_files'),
+                input_text,
+                self.on_done,
+                self.on_change,
+                self.on_cancel
+            )
             return
         
+        if window_id in active_input_panels:
+            active_input_panels[window_id]['is_active'] = False
+            del active_input_panels[window_id]
+        
         self._show_results(results, keywords)
+
     
     def on_change(self, input_text):
+        global active_input_panels
+        window_id = self.window.id()
+        if window_id in active_input_panels:
+            active_input_panels[window_id]['current_text'] = input_text
+
         if self.settings.get("preview_on_highlight", True):
             if not input_text or not input_text.strip():
                 for view in self.window.views():
@@ -1299,17 +1516,23 @@ class QuickLineNavigatorOpenFilesCommand(sublime_plugin.WindowCommand):
                         highlighter.clear(view)
     
     def on_cancel(self):
+        global active_input_panels
+        window_id = self.window.id()
+        if window_id in active_input_panels:
+            active_input_panels[window_id]['is_active'] = False  
+            del active_input_panels[window_id]
+            
         for view in self.window.views():
             if view:
                 highlighter.clear(view)
     
     def _show_results(self, results, keywords):
         formatter = DisplayFormatter(self.settings)
-        items = formatter.format_results(results, keywords, "open_files")
+        items, expanded_results = formatter.format_results(results, keywords, "open_files")
         
         def on_select(index):
             if index != -1:
-                item = results[index]
+                item = expanded_results[index]
                 file_path = item['file']
                 line_number = item.get('line_number', 1) - 1
                 
@@ -1322,15 +1545,26 @@ class QuickLineNavigatorOpenFilesCommand(sublime_plugin.WindowCommand):
                 if target_view:
                     self.window.focus_view(target_view)
                     target_view.run_command("goto_line", {"line": line_number + 1})
+                    highlighter.highlight(target_view, keywords)
+                    self._highlight_segment(target_view, item, line_number)
                 else:
-                    self.window.open_file(
+                    view = self.window.open_file(
                         "{0}:{1}:0".format(file_path, line_number + 1),
                         sublime.ENCODED_POSITION
                     )
+                    
+                    def highlight_when_ready():
+                        if view.is_loading():
+                            sublime.set_timeout(highlight_when_ready, 50)
+                        else:
+                            highlighter.highlight(view, keywords)
+                            self._highlight_segment(view, item, line_number)
+                    
+                    highlight_when_ready()
         
         def on_highlight(index):
             if index != -1:
-                item = results[index]
+                item = expanded_results[index]
                 file_path = item['file']
                 line_number = item.get('line_number', 1) - 1
                 
@@ -1338,6 +1572,8 @@ class QuickLineNavigatorOpenFilesCommand(sublime_plugin.WindowCommand):
                     if view.file_name() == file_path:
                         self.window.focus_view(view)
                         view.run_command("goto_line", {"line": line_number + 1})
+                        highlighter.highlight(view, keywords)
+                        self._highlight_segment(view, item, line_number)
                         break
         
         self.window.show_quick_panel(
@@ -1347,6 +1583,41 @@ class QuickLineNavigatorOpenFilesCommand(sublime_plugin.WindowCommand):
             0,
             on_highlight
         )
+    
+    def _highlight_segment(self, view, item, line_number):
+        if 'segment_start' not in item or 'segment_end' not in item:
+            return
+        
+        if hasattr(self, 'current_segment_key') and hasattr(self, 'highlighted_view_id'):
+            if self.current_segment_key and self.highlighted_view_id:
+                for window in sublime.windows():
+                    for v in window.views():
+                        if v.id() == self.highlighted_view_id:
+                            v.erase_regions(self.current_segment_key)
+                            break
+        
+        line_region = view.line(view.text_point(line_number, 0))
+        line_start = line_region.begin()
+        line_text = view.substr(line_region)
+        indent_amount = len(line_text) - len(line_text.lstrip())
+        
+        segment_start = line_start + indent_amount + item['segment_start']
+        segment_end = line_start + indent_amount + item['segment_end']
+        segment_region = sublime.Region(segment_start, segment_end)
+        
+        key = "QuickLineNavSegment_{0}".format(view.id())
+        self.current_segment_key = key
+        self.highlighted_view_id = view.id()
+        
+        view.add_regions(
+            key,
+            [segment_region],
+            "region.whitish",
+            "",
+            sublime.DRAW_NO_FILL | sublime.DRAW_NO_OUTLINE | sublime.DRAW_SOLID_UNDERLINE
+        )
+        
+        view.show(segment_region, True)
 
 
 class ToggleExtensionFiltersCommand(sublime_plugin.WindowCommand):
@@ -1534,8 +1805,17 @@ class QuickLineNavigatorEventListener(sublime_plugin.EventListener):
         self.last_row = {}
     
     def on_selection_modified(self, view):
-        """当选择改变时，检查是否需要清除片段高亮和所有关键词高亮"""
         if not view or not view.is_valid():
+            return
+        
+        global active_input_panels
+        has_active_search = False
+        for window_id, panel_info in active_input_panels.items():
+            if panel_info.get('is_active', False):
+                has_active_search = True
+                break
+        
+        if has_active_search:
             return
         
         view_id = view.id()
@@ -1543,29 +1823,20 @@ class QuickLineNavigatorEventListener(sublime_plugin.EventListener):
             current_row = view.rowcol(view.sel()[0].begin())[0] if view.sel() else -1
         except:
             current_row = -1
+        
         last_row = self.last_row.get(view_id, -1)
+        
         if current_row != last_row and last_row != -1:
             segment_key = "QuickLineNavSegment_{0}".format(view_id)
             try:
                 view.erase_regions(segment_key)
             except:
                 pass
+            
             highlighter.clear_all()
             cleanup_manager.cleanup_all()
+        
         self.last_row[view_id] = current_row
-    
-    def on_close(self, view):
-        """当视图关闭时清理高亮和记录"""
-        if view and view.is_valid():
-            view_id = view.id()
-            highlighter.clear(view)
-            cleanup_manager.cleanup_view(view)
-            self.last_row.pop(view_id, None)
-            segment_key = "QuickLineNavSegment_{0}".format(view_id)
-            try:
-                view.erase_regions(segment_key)
-            except:
-                pass
 
 
 def plugin_loaded():

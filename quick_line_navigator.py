@@ -1230,11 +1230,30 @@ class QuickLineNavigatorCommand(sublime_plugin.WindowCommand):
             )
             return
         
+        # Copy keywords to clipboard
+        if keywords:
+            # Format keywords for display/clipboard
+            formatted_keywords = []
+            for kw in keywords:
+                if ' ' in kw or any(c in kw for c in '"`\''):
+                    formatted_keywords.append('`{}`'.format(kw))
+                else:
+                    formatted_keywords.append(kw)
+            keywords_text = ' '.join(formatted_keywords)
+            
+            # Copy to clipboard
+            sublime.set_clipboard(keywords_text)
+            
+            # Store for potential re-use in the input panel
+            if window_id in active_input_panels:
+                active_input_panels[window_id]['last_keywords'] = keywords_text
+        
         if window_id in active_input_panels:
             active_input_panels[window_id]['is_active'] = False
             del active_input_panels[window_id]
         
         self._show_results(results, keywords)
+
 
     
     def on_cancel(self):
@@ -1275,8 +1294,29 @@ class QuickLineNavigatorCommand(sublime_plugin.WindowCommand):
         formatter = DisplayFormatter(self.settings)
         items, expanded_results = formatter.format_results(results, keywords, self.scope)
         
+        # Store keywords for potential re-use
+        formatted_keywords = []
+        for kw in keywords:
+            if ' ' in kw or any(c in kw for c in '"`\''):
+                formatted_keywords.append('`{}`'.format(kw))
+            else:
+                formatted_keywords.append(kw)
+        keywords_text = ' '.join(formatted_keywords)
+        
+        # Create placeholder text
+        placeholder_text = "Keywords: {}".format(keywords_text) if keywords else "All lines"
+        
         def on_select(index):
-            if index != -1:
+            if index == -1:
+                # User cancelled - optionally re-open search with same keywords
+                self.window.show_input_panel(
+                    UIText.get_search_prompt(self.scope),
+                    keywords_text,  # Pre-fill with formatted keywords
+                    self.on_done,
+                    self.on_change,
+                    self.on_cancel
+                )
+            else:
                 item = expanded_results[index]
                 file_path = item['file']
                 line_number = item.get('line_number', 1) - 1
@@ -1318,7 +1358,8 @@ class QuickLineNavigatorCommand(sublime_plugin.WindowCommand):
             on_select,
             sublime.MONOSPACE_FONT,
             0,
-            on_highlight
+            on_highlight,
+            placeholder_text  # This shows the keywords as placeholder
         )
 
     def _highlight_segment(self, view, item, line_number):
@@ -1483,6 +1524,24 @@ class QuickLineNavigatorOpenFilesCommand(sublime_plugin.WindowCommand):
             )
             return
         
+        # Copy keywords to clipboard
+        if keywords:
+            # Format keywords for display/clipboard
+            formatted_keywords = []
+            for kw in keywords:
+                if ' ' in kw or any(c in kw for c in '"`\''):
+                    formatted_keywords.append('`{}`'.format(kw))
+                else:
+                    formatted_keywords.append(kw)
+            keywords_text = ' '.join(formatted_keywords)
+            
+            # Copy to clipboard
+            sublime.set_clipboard(keywords_text)
+            
+            # Store for potential re-use in the input panel
+            if window_id in active_input_panels:
+                active_input_panels[window_id]['last_keywords'] = keywords_text
+        
         if window_id in active_input_panels:
             active_input_panels[window_id]['is_active'] = False
             del active_input_panels[window_id]
@@ -1528,8 +1587,29 @@ class QuickLineNavigatorOpenFilesCommand(sublime_plugin.WindowCommand):
         formatter = DisplayFormatter(self.settings)
         items, expanded_results = formatter.format_results(results, keywords, "open_files")
         
+        # Store keywords for potential re-use
+        formatted_keywords = []
+        for kw in keywords:
+            if ' ' in kw or any(c in kw for c in '"`\''):
+                formatted_keywords.append('`{}`'.format(kw))
+            else:
+                formatted_keywords.append(kw)
+        keywords_text = ' '.join(formatted_keywords)
+        
+        # Create placeholder text
+        placeholder_text = "Keywords: {}".format(keywords_text) if keywords else "All lines"
+        
         def on_select(index):
-            if index != -1:
+            if index == -1:
+                # User cancelled - optionally re-open search with same keywords
+                self.window.show_input_panel(
+                    UIText.get_search_prompt('open_files'),
+                    keywords_text,  # Pre-fill with formatted keywords
+                    self.on_done,
+                    self.on_change,
+                    self.on_cancel
+                )
+            else:
                 item = expanded_results[index]
                 file_path = item['file']
                 line_number = item.get('line_number', 1) - 1
@@ -1579,8 +1659,10 @@ class QuickLineNavigatorOpenFilesCommand(sublime_plugin.WindowCommand):
             on_select,
             sublime.MONOSPACE_FONT,
             0,
-            on_highlight
+            on_highlight,
+            placeholder_text  # This shows the keywords as placeholder
         )
+
     
     def _highlight_segment(self, view, item, line_number):
         if 'segment_start' not in item or 'segment_end' not in item:

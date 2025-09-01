@@ -26,7 +26,7 @@ DEFAULT_BLACKLIST = ['.exe', '.dll', '.so', '.dylib', '.a', '.lib', '.obj', '.o'
                      '.tmp', '.cache', '.log', '.swp', '.swo', '.swn', '.bak', '~']
 
 HIGHLIGHT_SCOPES = ['region.redish', 'region.bluish', 'region.yellowish', 'region.greenish',
-                    'region.purplish', 'region.orangish', 'region.grayish']
+                    'region.purplish', 'region.orangish', 'selection']
 HIGHLIGHT_ICONS = ['dot', 'circle', 'cross', 'bookmark', 'dot', 'circle', 'bookmark']
 KEYWORD_EMOJIS = ['🟥', '🟦', '🟨', '🟩', '🟪', '🟧', '⬜']
 
@@ -620,7 +620,7 @@ class Highlighter:
                     scope = HIGHLIGHT_SCOPES[i % len(HIGHLIGHT_SCOPES)]
                     icon = HIGHLIGHT_ICONS[i % len(HIGHLIGHT_ICONS)]
                     
-                    view.add_regions(key, regions, scope, icon, sublime.PERSISTENT)
+                    view.add_regions(key, regions, scope, icon, sublime.PERSISTENT | sublime.DRAW_NO_OUTLINE)
             except Exception as e:
                 print("Error highlighting keyword '{}': {}".format(keyword, e))
                 continue
@@ -937,8 +937,16 @@ class CleanupManager:
                     regions = view.get_regions(key)
                     if not regions:
                         view.erase_regions(key)
+                        # 如果是段落高亮，同时清理边框
+                        if "Segment" in key:
+                            view.erase_regions(key + "_border")
                 except:
                     view.erase_regions(key)
+                    if "Segment" in key:
+                        try:
+                            view.erase_regions(key + "_border")
+                        except:
+                            pass
         except:
             pass
 
@@ -1126,11 +1134,14 @@ class BaseQuickLineNavigatorCommand(sublime_plugin.WindowCommand):
         if 'segment_start' not in item or 'segment_end' not in item:
             return
         
+        # 清除之前的高亮（包括下划线和边框）
         if self.current_segment_key and self.highlighted_view_id:
             for window in sublime.windows():
                 for v in window.views():
                     if v.id() == self.highlighted_view_id:
                         v.erase_regions(self.current_segment_key)
+                        # 清除边框
+                        v.erase_regions(self.current_segment_key + "_border")
                         break
         
         line_region = view.line(view.text_point(line_number, 0))
@@ -1146,6 +1157,7 @@ class BaseQuickLineNavigatorCommand(sublime_plugin.WindowCommand):
         self.current_segment_key = key
         self.highlighted_view_id = view.id()
         
+        # 添加白色下划线
         view.add_regions(
             key,
             [segment_region],
@@ -1154,7 +1166,20 @@ class BaseQuickLineNavigatorCommand(sublime_plugin.WindowCommand):
             sublime.DRAW_NO_FILL | sublime.DRAW_NO_OUTLINE | sublime.DRAW_SOLID_UNDERLINE
         )
         
+        # 只有当这一行有多个段落时才添加灰色边框
+        total_segments = item.get('total_segments', 1)
+        if total_segments > 1:
+            border_key = key + "_border"
+            view.add_regions(
+                border_key,
+                [line_region],
+                "region.grayish",  # 使用灰色区域 region.grayish, comment = selection, string = markup.inserted, invalid = markup.deleted
+                "",
+                sublime.DRAW_NO_FILL | sublime.DRAW_EMPTY  # 只画边框，无填充
+            )
+        
         view.show(segment_region, True)
+
     
     def clear_highlights(self):
         """清除高亮 - 子类实现"""
@@ -1732,8 +1757,10 @@ class QuickLineNavigatorEventListener(sublime_plugin.EventListener):
         
         if current_row != last_row and last_row != -1:
             segment_key = "QuickLineNavSegment_{0}".format(view_id)
+            border_key = segment_key + "_border"
             try:
                 view.erase_regions(segment_key)
+                view.erase_regions(border_key)  # 同时清除边框
             except:
                 pass
             

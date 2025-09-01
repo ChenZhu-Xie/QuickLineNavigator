@@ -1031,20 +1031,20 @@ class UIText:
 class QuickLineNavigatorMenuCommand(sublime_plugin.WindowCommand):
     def run(self):
         menu_items = [
-            ["🔍 Search Commands 1 📄 Search in Current File"],
-            ["🔍 Search Commands 2 📁 Search in Project"],
-            ["🔍 Search Commands 3 📂 Search in Folder"],
-            ["🔍 Search Commands 4 📑 Search in Open Files"],
+            ["📄 Search in Current File　　　　　　　1 🔍 Search Commands"],
+            ["📁 Search in Project　　　　　　　　　2 🔍 Search Commands"],
+            ["📂 Search in Folder　　　　　　　　　 3 🔍 Search Commands"],
+            ["📑 Search in Open Files　　　　　　　 4 🔍 Search Commands"],
             
-            ["🎛️ Filter Controls 5 🔄 Toggle Filters (Permanent)"],
-            ["🎛️ Filter Controls 6 ⏱️ Toggle Filters (Temporary)"],
-            ["🎛️ Filter Controls 7 📊 Show Filter Status"],
+            ["🔄 Toggle Filters (Permanent)　　　　  5 🎛️ Filter Controls"],
+            ["⏱️ Toggle Filters (Temporary)　　　　  6 🎛️ Filter Controls"],
+            ["📊 Show Filter Status　　　　　　　　 7 🎛️ Filter Controls"],
             
-            ["📁 Folder Settings 8 📍 Set Search Folder"],
-            ["📁 Folder Settings 9 🗑️ Clear Search Folder"],
+            ["📍 Set Search Folder　　　　　　　　  8 📁 Folder Settings"],
+            ["🗑️ Clear Search Folder　　　　　　　  9 📁 Folder Settings"],
             
-            ["✨ Highlight Management 0 🧹 Clear All Highlights"],
-            ["✨ Highlight Management - 🔦 Clear Current View Highlights"]
+            ["🧹 Clear All Highlights　　　　　　　  0 ✨ Highlight Management"],
+            ["🔦 Clear Current View Highlights　　　- ✨ Highlight Management"]
         ]
         command_map = {
             0: ("quick_line_navigator", {"scope": "file"}),

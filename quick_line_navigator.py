@@ -937,7 +937,6 @@ class CleanupManager:
                     regions = view.get_regions(key)
                     if not regions:
                         view.erase_regions(key)
-                        # 如果是段落高亮，同时清理边框
                         if "Segment" in key:
                             view.erase_regions(key + "_border")
                 except:
@@ -1126,7 +1125,8 @@ class BaseQuickLineNavigatorCommand(sublime_plugin.WindowCommand):
         ResultsDisplayHandler.show_results(
             self.window, results, keywords, self.scope,
             self.on_done, self.on_change, self.on_cancel,
-            self._highlight_segment
+            self._highlight_segment,
+            command_instance=self  
         )
     
     def _highlight_segment(self, view, item, line_number):
@@ -1134,13 +1134,11 @@ class BaseQuickLineNavigatorCommand(sublime_plugin.WindowCommand):
         if 'segment_start' not in item or 'segment_end' not in item:
             return
         
-        # 清除之前的高亮（包括下划线和边框）
         if self.current_segment_key and self.highlighted_view_id:
             for window in sublime.windows():
                 for v in window.views():
                     if v.id() == self.highlighted_view_id:
                         v.erase_regions(self.current_segment_key)
-                        # 清除边框
                         v.erase_regions(self.current_segment_key + "_border")
                         break
         
@@ -1157,7 +1155,6 @@ class BaseQuickLineNavigatorCommand(sublime_plugin.WindowCommand):
         self.current_segment_key = key
         self.highlighted_view_id = view.id()
         
-        # 添加白色下划线
         view.add_regions(
             key,
             [segment_region],
@@ -1166,21 +1163,43 @@ class BaseQuickLineNavigatorCommand(sublime_plugin.WindowCommand):
             sublime.DRAW_NO_FILL | sublime.DRAW_NO_OUTLINE | sublime.DRAW_SOLID_UNDERLINE
         )
         
-        # 只有当这一行有多个段落时才添加灰色边框
         total_segments = item.get('total_segments', 1)
         if total_segments > 1:
             border_key = key + "_border"
             view.add_regions(
                 border_key,
                 [line_region],
-                "region.grayish",  # 使用灰色区域 region.grayish, comment = selection, string = markup.inserted, invalid = markup.deleted
+                "region.grayish",  
                 "",
-                sublime.DRAW_NO_FILL | sublime.DRAW_EMPTY  # 只画边框，无填充
+                sublime.DRAW_NO_FILL | sublime.DRAW_EMPTY  
             )
         
         view.show(segment_region, True)
 
     
+    def handle_quick_panel_cancel(self, formatted_keywords):
+        """处理 quick panel 取消的情况"""
+        window_id = self.window.id()
+        
+        active_input_panels[window_id] = {
+            'scope': self.scope,
+            'current_text': formatted_keywords,
+            'command_instance': self,
+            'is_active': True
+        }
+        
+        self.input_view = self.window.show_input_panel(
+            UIText.get_search_prompt(self.scope),
+            formatted_keywords,
+            self.on_done,
+            self.on_change,
+            self.on_cancel
+        )
+        
+        if window_id in active_input_panels:
+            active_input_panels[window_id]['input_view'] = self.input_view
+
+
     def clear_highlights(self):
         """清除高亮 - 子类实现"""
         raise NotImplementedError
@@ -1193,7 +1212,8 @@ class ResultsDisplayHandler:
     """处理搜索结果显示的通用类"""
     
     @staticmethod
-    def show_results(window, results, keywords, scope, on_done_callback, on_change_callback, on_cancel_callback, highlight_segment_callback):
+    def show_results(window, results, keywords, scope, on_done_callback, on_change_callback, 
+        on_cancel_callback, highlight_segment_callback, command_instance=None):
         """显示搜索结果"""
         formatter = DisplayFormatter(Settings())
         items, expanded_results = formatter.format_results(results, keywords, scope)
@@ -1203,13 +1223,16 @@ class ResultsDisplayHandler:
         
         def on_select(index):
             if index == -1:
-                window.show_input_panel(
-                    UIText.get_search_prompt(scope),
-                    formatted_keywords,
-                    on_done_callback,
-                    on_change_callback,
-                    on_cancel_callback
-                )
+                if command_instance and hasattr(command_instance, 'handle_quick_panel_cancel'):
+                    command_instance.handle_quick_panel_cancel(formatted_keywords)
+                else:
+                    window.show_input_panel(
+                        UIText.get_search_prompt(scope),
+                        formatted_keywords,
+                        on_done_callback,
+                        on_change_callback,
+                        on_cancel_callback
+                    )
             else:
                 ResultsDisplayHandler._handle_selection(
                     window, expanded_results[index], keywords, scope, highlight_segment_callback
@@ -1760,7 +1783,7 @@ class QuickLineNavigatorEventListener(sublime_plugin.EventListener):
             border_key = segment_key + "_border"
             try:
                 view.erase_regions(segment_key)
-                view.erase_regions(border_key)  # 同时清除边框
+                view.erase_regions(border_key)  
             except:
                 pass
             
@@ -1768,6 +1791,13 @@ class QuickLineNavigatorEventListener(sublime_plugin.EventListener):
             cleanup_manager.cleanup_all()
         
         self.last_row[view_id] = current_row
+
+    def on_window_command(self, window, command_name, args):
+        """监听窗口命令，检测 quick panel 的关闭"""
+        if command_name == "hide_overlay" or command_name == "hide_panel":
+            window_id = window.id()
+            if window_id in active_input_panels and not active_input_panels[window_id].get('is_active', False):
+                highlighter.clear_all()
 
 
 def plugin_loaded():

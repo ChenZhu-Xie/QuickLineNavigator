@@ -584,7 +584,15 @@ class SearchEngine:
     def _print_stats(self, results_count, paths, keywords, original, duration):
         scope_name = UIText.get_scope_display_name(self.scope)
         print("🎯 {0} Search Complete".format(scope_name))
-        print("  📍 Keywords: {0}".format(original or keywords))
+        
+        if keywords:
+            keyword_display = []
+            for i, kw in enumerate(keywords):
+                emoji = KEYWORD_EMOJIS[i % len(KEYWORD_EMOJIS)]
+                keyword_display.append("{0}{1}".format(emoji, kw))
+            print("  📍 Keywords: {0}".format(" ".join(keyword_display)))
+        else:
+            print("  📍 Keywords: {0}".format(original or "All lines"))
         
         if self.scope in ["folder", "project"]:
             print("  📁 Folders: {0}".format(len(paths)))
@@ -1230,9 +1238,7 @@ class QuickLineNavigatorCommand(sublime_plugin.WindowCommand):
             )
             return
         
-        # Copy keywords to clipboard
         if keywords:
-            # Format keywords for display/clipboard
             formatted_keywords = []
             for kw in keywords:
                 if ' ' in kw or any(c in kw for c in '"`\''):
@@ -1241,10 +1247,8 @@ class QuickLineNavigatorCommand(sublime_plugin.WindowCommand):
                     formatted_keywords.append(kw)
             keywords_text = ' '.join(formatted_keywords)
             
-            # Copy to clipboard
             sublime.set_clipboard(keywords_text)
             
-            # Store for potential re-use in the input panel
             if window_id in active_input_panels:
                 active_input_panels[window_id]['last_keywords'] = keywords_text
         
@@ -1294,7 +1298,6 @@ class QuickLineNavigatorCommand(sublime_plugin.WindowCommand):
         formatter = DisplayFormatter(self.settings)
         items, expanded_results = formatter.format_results(results, keywords, self.scope)
         
-        # Store keywords for potential re-use
         formatted_keywords = []
         for kw in keywords:
             if ' ' in kw or any(c in kw for c in '"`\''):
@@ -1303,15 +1306,23 @@ class QuickLineNavigatorCommand(sublime_plugin.WindowCommand):
                 formatted_keywords.append(kw)
         keywords_text = ' '.join(formatted_keywords)
         
-        # Create placeholder text
-        placeholder_text = "Keywords: {}".format(keywords_text) if keywords else "All lines"
+        if keywords:
+            placeholder_keywords = []
+            for i, kw in enumerate(keywords):
+                emoji = KEYWORD_EMOJIS[i % len(KEYWORD_EMOJIS)]
+                if ' ' in kw or any(c in kw for c in '"`\''):
+                    placeholder_keywords.append('{0}`{1}`'.format(emoji, kw))
+                else:
+                    placeholder_keywords.append('{0}{1}'.format(emoji, kw))
+            placeholder_text = "Keywords: {}".format(' '.join(placeholder_keywords))
+        else:
+            placeholder_text = "All lines"
         
         def on_select(index):
             if index == -1:
-                # User cancelled - optionally re-open search with same keywords
                 self.window.show_input_panel(
                     UIText.get_search_prompt(self.scope),
-                    keywords_text,  # Pre-fill with formatted keywords
+                    keywords_text,  
                     self.on_done,
                     self.on_change,
                     self.on_cancel
@@ -1359,7 +1370,7 @@ class QuickLineNavigatorCommand(sublime_plugin.WindowCommand):
             sublime.MONOSPACE_FONT,
             0,
             on_highlight,
-            placeholder_text  # This shows the keywords as placeholder
+            placeholder_text  
         )
 
     def _highlight_segment(self, view, item, line_number):
@@ -1524,9 +1535,7 @@ class QuickLineNavigatorOpenFilesCommand(sublime_plugin.WindowCommand):
             )
             return
         
-        # Copy keywords to clipboard
         if keywords:
-            # Format keywords for display/clipboard
             formatted_keywords = []
             for kw in keywords:
                 if ' ' in kw or any(c in kw for c in '"`\''):
@@ -1535,10 +1544,8 @@ class QuickLineNavigatorOpenFilesCommand(sublime_plugin.WindowCommand):
                     formatted_keywords.append(kw)
             keywords_text = ' '.join(formatted_keywords)
             
-            # Copy to clipboard
             sublime.set_clipboard(keywords_text)
             
-            # Store for potential re-use in the input panel
             if window_id in active_input_panels:
                 active_input_panels[window_id]['last_keywords'] = keywords_text
         
@@ -1587,7 +1594,6 @@ class QuickLineNavigatorOpenFilesCommand(sublime_plugin.WindowCommand):
         formatter = DisplayFormatter(self.settings)
         items, expanded_results = formatter.format_results(results, keywords, "open_files")
         
-        # Store keywords for potential re-use
         formatted_keywords = []
         for kw in keywords:
             if ' ' in kw or any(c in kw for c in '"`\''):
@@ -1596,15 +1602,23 @@ class QuickLineNavigatorOpenFilesCommand(sublime_plugin.WindowCommand):
                 formatted_keywords.append(kw)
         keywords_text = ' '.join(formatted_keywords)
         
-        # Create placeholder text
-        placeholder_text = "Keywords: {}".format(keywords_text) if keywords else "All lines"
+        if keywords:
+            placeholder_keywords = []
+            for i, kw in enumerate(keywords):
+                emoji = KEYWORD_EMOJIS[i % len(KEYWORD_EMOJIS)]
+                if ' ' in kw or any(c in kw for c in '"`\''):
+                    placeholder_keywords.append('{0}`{1}`'.format(emoji, kw))
+                else:
+                    placeholder_keywords.append('{0}{1}'.format(emoji, kw))
+            placeholder_text = "Keywords: {}".format(' '.join(placeholder_keywords))
+        else:
+            placeholder_text = "All lines"
         
         def on_select(index):
             if index == -1:
-                # User cancelled - optionally re-open search with same keywords
                 self.window.show_input_panel(
                     UIText.get_search_prompt('open_files'),
-                    keywords_text,  # Pre-fill with formatted keywords
+                    keywords_text,  
                     self.on_done,
                     self.on_change,
                     self.on_cancel
@@ -1660,7 +1674,7 @@ class QuickLineNavigatorOpenFilesCommand(sublime_plugin.WindowCommand):
             sublime.MONOSPACE_FONT,
             0,
             on_highlight,
-            placeholder_text  # This shows the keywords as placeholder
+            placeholder_text  
         )
 
     

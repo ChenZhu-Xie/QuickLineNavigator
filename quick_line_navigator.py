@@ -4,7 +4,6 @@ import os
 import re
 import json
 import time
-import threading
 import subprocess
 import platform
 import unicodedata
@@ -902,52 +901,60 @@ class DisplayFormatter:
 class CleanupManager:
     def __init__(self):
         self.active = True
-        self.cleanup_thread = None
-    
+        self._cleaning = False
+        
     def set_active(self, active):
         """Set whether the cleanup manager is active"""
         self.active = active
     
     def cleanup_all(self):
+        """Clean up all views - runs in main thread with timeout"""
+        if not self.active or self._cleaning:
+            return
+            
+        self._cleaning = True
+        
         def do_cleanup():
             try:
                 for window in sublime.windows():
                     for view in window.views():
                         if view and view.is_valid():
                             self.cleanup_view(view)
-            except:
-                pass
+            finally:
+                self._cleaning = False
         
-        self.cleanup_thread = threading.Thread(target=do_cleanup)
-        self.cleanup_thread.daemon = True
-        self.cleanup_thread.start()
+        sublime.set_timeout_async(do_cleanup, 0)
     
     def cleanup_view(self, view):
-        """清理单个视图中的无效区域"""
-        if not view or not view.is_valid() or not self.active:
+        """Clean up a single view"""
+        if not self.active or not view or not view.is_valid():
             return
         
         try:
-            all_keys = []
-            for key in list(view.settings().to_dict().keys()):
-                if key.startswith("QuickLineNav"):
-                    all_keys.append(key)
+            prefixes = ['QuickLineNav', 'QuickLineNavSegment']
+            keys_to_remove = []
+            
+            all_keys = list(view.settings().to_dict().keys())
+            
             for key in all_keys:
+                for prefix in prefixes:
+                    if key.startswith(prefix):
+                        keys_to_remove.append(key)
+                        break
+            
+            for key in keys_to_remove:
                 try:
-                    regions = view.get_regions(key)
-                    if not regions:
-                        view.erase_regions(key)
-                        if "Segment" in key:
-                            view.erase_regions(key + "_border")
-                except:
                     view.erase_regions(key)
                     if "Segment" in key:
                         try:
                             view.erase_regions(key + "_border")
                         except:
                             pass
-        except:
-            pass
+                except:
+                    pass
+                    
+        except Exception as e:
+            print("CleanupManager: Error cleaning view: {0}".format(e))
 
 
 class BaseQuickLineNavigatorCommand(sublime_plugin.WindowCommand):

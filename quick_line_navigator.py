@@ -898,65 +898,6 @@ class DisplayFormatter:
         return "☲ " + " ".join(parts)
         
 
-class CleanupManager:
-    def __init__(self):
-        self.active = True
-        self._cleaning = False
-        
-    def set_active(self, active):
-        """Set whether the cleanup manager is active"""
-        self.active = active
-    
-    def cleanup_all(self):
-        """Clean up all views - runs in main thread with timeout"""
-        if not self.active or self._cleaning:
-            return
-            
-        self._cleaning = True
-        
-        def do_cleanup():
-            try:
-                for window in sublime.windows():
-                    for view in window.views():
-                        if view and view.is_valid():
-                            self.cleanup_view(view)
-            finally:
-                self._cleaning = False
-        
-        sublime.set_timeout_async(do_cleanup, 0)
-    
-    def cleanup_view(self, view):
-        """Clean up a single view"""
-        if not self.active or not view or not view.is_valid():
-            return
-        
-        try:
-            prefixes = ['QuickLineNav', 'QuickLineNavSegment']
-            keys_to_remove = []
-            
-            all_keys = list(view.settings().to_dict().keys())
-            
-            for key in all_keys:
-                for prefix in prefixes:
-                    if key.startswith(prefix):
-                        keys_to_remove.append(key)
-                        break
-            
-            for key in keys_to_remove:
-                try:
-                    view.erase_regions(key)
-                    if "Segment" in key:
-                        try:
-                            view.erase_regions(key + "_border")
-                        except:
-                            pass
-                except:
-                    pass
-                    
-        except Exception as e:
-            print("CleanupManager: Error cleaning view: {0}".format(e))
-
-
 class BaseQuickLineNavigatorCommand(sublime_plugin.WindowCommand):
     """基础搜索命令类，处理共同的搜索逻辑"""
     
@@ -1144,12 +1085,27 @@ class BaseQuickLineNavigatorCommand(sublime_plugin.WindowCommand):
         if 'segment_start' not in item or 'segment_end' not in item:
             return
         
+        # 获取当前行信息
+        current_file = item.get('file', '')
+        current_line_number = item.get('line_number', -1)
+        new_line_key = (current_file, current_line_number)
+        
+        # 初始化上一次的行信息（如果需要）
+        if not hasattr(self, '_last_highlighted_line'):
+            self._last_highlighted_line = None
+        
+        # 判断是否是新的原始行
+        is_new_line = self._last_highlighted_line != new_line_key
+        
+        # 清除之前的高亮（但保留同一行的白框）
         if self.current_segment_key and self.highlighted_view_id:
             for window in sublime.windows():
                 for v in window.views():
                     if v.id() == self.highlighted_view_id:
                         v.erase_regions(self.current_segment_key)
-                        v.erase_regions(self.current_segment_key + "_border")
+                        # 只有在切换到不同原始行时才清除白框
+                        if is_new_line:
+                            v.erase_regions(self.current_segment_key + "_border")
                         break
         
         line_region = view.line(view.text_point(line_number, 0))
@@ -1165,6 +1121,7 @@ class BaseQuickLineNavigatorCommand(sublime_plugin.WindowCommand):
         self.current_segment_key = key
         self.highlighted_view_id = view.id()
         
+        # 添加白色下划线
         view.add_regions(
             key,
             [segment_region],
@@ -1173,8 +1130,11 @@ class BaseQuickLineNavigatorCommand(sublime_plugin.WindowCommand):
             sublime.DRAW_NO_FILL | sublime.DRAW_NO_OUTLINE | sublime.DRAW_SOLID_UNDERLINE
         )
         
+        # 只有当切换到不同的原始行时才显示新的白框
         total_segments = item.get('total_segments', 1)
-        if total_segments > 1:
+        if total_segments > 1 and is_new_line:
+            self._last_highlighted_line = new_line_key
+            
             border_key = key + "_border"
             
             self._border_timer_id += 1
@@ -1197,7 +1157,12 @@ class BaseQuickLineNavigatorCommand(sublime_plugin.WindowCommand):
             
             sublime.set_timeout(clear_border, 1000)
         
+        # 更新最后高亮的行信息
+        if is_new_line:
+            self._last_highlighted_line = new_line_key
+        
         view.show(segment_region, True)
+
     
     def handle_quick_panel_cancel(self, formatted_keywords):
         """处理 quick panel 取消的情况"""
@@ -1230,6 +1195,7 @@ class BaseQuickLineNavigatorCommand(sublime_plugin.WindowCommand):
         """高亮关键词 - 子类实现"""
         raise NotImplementedError
 
+
 class ResultsDisplayHandler:
     """处理搜索结果显示的通用类"""
     
@@ -1241,7 +1207,8 @@ class ResultsDisplayHandler:
         items, expanded_results = formatter.format_results(results, keywords, scope)
         
         formatted_keywords = ResultsDisplayHandler._format_keywords(keywords)
-        placeholder_text = ResultsDisplayHandler._get_placeholder_text(keywords)
+        # 修改：传递结果数量到 placeholder text
+        placeholder_text = ResultsDisplayHandler._get_placeholder_text(keywords, len(results))
         
         def on_select(index):
             if index == -1:
@@ -1287,7 +1254,7 @@ class ResultsDisplayHandler:
         return ' '.join(formatted)
     
     @staticmethod
-    def _get_placeholder_text(keywords):
+    def _get_placeholder_text(keywords, results_count):
         """获取占位符文本"""
         if keywords:
             placeholder_keywords = []
@@ -1297,9 +1264,9 @@ class ResultsDisplayHandler:
                     placeholder_keywords.append('{0}`{1}`'.format(emoji, kw))
                 else:
                     placeholder_keywords.append('{0}{1}'.format(emoji, kw))
-            return "Keywords: {}".format(' '.join(placeholder_keywords))
+            return "Keywords: {} - {} lines found".format(' '.join(placeholder_keywords), results_count)
         else:
-            return "All lines"
+            return "All lines - {} lines found".format(results_count)
     
     @staticmethod
     def _handle_selection(window, item, keywords, scope, highlight_segment_callback):
@@ -1760,7 +1727,6 @@ class ClearSearchFolderCommand(sublime_plugin.WindowCommand):
 class ClearKeywordHighlightsCommand(sublime_plugin.WindowCommand):
     def run(self):
         highlighter.clear_all()
-        cleanup_manager.cleanup_all()
         sublime.status_message(UIText.get_status_message('highlights_cleared'))
 
 
@@ -1769,7 +1735,6 @@ class ClearCurrentViewHighlightsCommand(sublime_plugin.WindowCommand):
         view = self.window.active_view()
         if view:
             highlighter.clear(view)
-            cleanup_manager.cleanup_view(view)
             sublime.status_message(UIText.get_status_message('view_highlights_cleared'))
 
 
@@ -1814,7 +1779,6 @@ class QuickLineNavigatorEventListener(sublime_plugin.EventListener):
                 pass
             
             highlighter.clear_all()
-            cleanup_manager.cleanup_all()
         
         self.last_row[view_id] = current_row
 
@@ -1827,8 +1791,6 @@ class QuickLineNavigatorEventListener(sublime_plugin.EventListener):
 
 
 def plugin_loaded():
-    cleanup_manager.cleanup_all()
-    
     settings_path = os.path.join(sublime.packages_path(), "User", SETTINGS_FILE)
     if not os.path.exists(settings_path):
         default_settings = {
@@ -1855,12 +1817,9 @@ def plugin_loaded():
 
 
 def plugin_unloaded():
-    cleanup_manager.set_active(False)
     highlighter.clear_all()
-    cleanup_manager.cleanup_all()
 
 
 settings = Settings()
 ugrep = UgrepExecutor()
 highlighter = Highlighter()
-cleanup_manager = CleanupManager()

@@ -29,7 +29,164 @@ HIGHLIGHT_SCOPES = ['region.redish', 'region.bluish', 'region.yellowish', 'regio
 HIGHLIGHT_ICONS = ['dot', 'circle', 'cross', 'bookmark', 'dot', 'circle', 'bookmark']
 KEYWORD_EMOJIS = ['🟥', '🟦', '🟨', '🟩', '🟪', '🟧', '⬜']
 
-active_input_panels = {}
+# 简化的全局状态管理
+class GlobalState:
+    def __init__(self):
+        self.active_panel = None
+        self.stored_keywords = ""
+        self.debug_enabled = True
+        # Add the missing attributes
+        self.is_esc_clearing = False
+        self.is_programmatic_close = False
+        self.is_switching = False
+        self.is_panel_switching = False  # 添加这个新标记
+    
+    def handle_esc_clear(self):
+        """处理 ESC 清空操作 - 简化版本"""
+        self.debug_print("handle_esc_clear(): ESC pressed, clearing stored_keywords")
+        self.stored_keywords = ""
+        self.clear_active_panel()
+    
+    def reset_esc_flag(self):
+        """重置 ESC 标记"""
+        if self.is_esc_clearing:
+            self.debug_print("reset_esc_flag(): Resetting ESC clearing flag")
+            self.is_esc_clearing = False
+        self.is_programmatic_close = False
+        self.is_panel_switching = False  # 重置面板切换标记
+
+    def debug_print(self, message):
+        """调试输出函数"""
+        if self.debug_enabled:
+            print("🔍 [GlobalState Debug] {0}".format(message))
+    
+    def has_active_panel(self):
+        """检查是否有活动的输入面板"""
+        result = self.active_panel is not None
+        self.debug_print("has_active_panel() -> {0}, active_panel: {1}".format(
+            result, 
+            self.active_panel.get('scope', 'None') if self.active_panel else 'None'
+        ))
+        return result
+    
+    def get_active_panel_text(self):
+        """获取当前活动面板的文本"""
+        if not self.active_panel or not self.active_panel.get('input_view'):
+            self.debug_print("get_active_panel_text() -> '' (no active panel or input_view)")
+            return ""
+        
+        input_view = self.active_panel['input_view']
+        if input_view and input_view.is_valid():
+            text = input_view.substr(sublime.Region(0, input_view.size()))
+            self.debug_print("get_active_panel_text() -> '{0}'".format(text))
+            return text
+        
+        self.debug_print("get_active_panel_text() -> '' (invalid input_view)")
+        return ""
+    
+    def set_active_panel(self, panel_info):
+        """设置活动面板"""
+        old_scope = self.active_panel.get('scope', 'None') if self.active_panel else 'None'
+        new_scope = panel_info.get('scope', 'None')
+        
+        self.active_panel = panel_info
+        self.is_esc_clearing = False
+        
+        self.debug_print("set_active_panel(): {0} -> {1}".format(old_scope, new_scope))
+    
+    def clear_active_panel(self):
+        """清除活动面板"""
+        old_scope = self.active_panel.get('scope', 'None') if self.active_panel else 'None'
+        self.active_panel = None
+        self.debug_print("clear_active_panel(): {0} -> None".format(old_scope))
+    
+    def get_initial_text_for_new_panel(self, selected_text="", target_scope=""):
+        """为新面板获取初始文本 - 简化版本"""
+        self.debug_print("get_initial_text_for_new_panel(): selected_text='{0}', target_scope='{1}'".format(
+            selected_text, target_scope
+        ))
+        
+        # 有选中文本时，优先使用选中文本
+        if selected_text:
+            formatted_selected = TextUtils.format_keyword_for_input(selected_text)
+            result = self.format_text_with_space(formatted_selected)
+            self.debug_print("Using selected text: '{0}'".format(result))
+            return result
+        
+        # 没有选中文本时，使用存储的关键词
+        result = self.format_text_with_space(self.stored_keywords)
+        self.debug_print("Using stored keywords: '{0}'".format(result))
+        return result
+
+    
+    def save_current_keywords(self, text):
+        """保存当前关键词 - 简化版本"""
+        if text:
+            old_keywords = self.stored_keywords
+            self.stored_keywords = text
+            self.debug_print("save_current_keywords(): '{0}' -> '{1}'".format(old_keywords, text))
+        else:
+            self.debug_print("save_current_keywords(): Not saving empty text")
+    
+    def should_append_space(self, text):
+        """判断是否需要在末尾添加空格 - 规则 2.d"""
+        if not text:
+            self.debug_print("should_append_space(): No text -> False")
+            return False
+        
+        # 如果已经以空格结尾，不需要添加
+        if text.endswith(' '):
+            self.debug_print("should_append_space(): Already ends with space -> False")
+            return False
+        
+        # 如果没有关键词，不需要添加
+        keywords = TextUtils.parse_keywords(text)
+        if not keywords:
+            self.debug_print("should_append_space(): No keywords found -> False")
+            return False
+        
+        self.debug_print("should_append_space(): Has keywords and no trailing space -> True")
+        return True
+    
+    def format_text_with_space(self, text):
+        """格式化文本，根据规则 2.d 添加空格"""
+        if self.should_append_space(text):
+            result = text + ' '
+            self.debug_print("format_text_with_space(): '{0}' -> '{1}' (space added)".format(text, result))
+            return result
+        
+        self.debug_print("format_text_with_space(): '{0}' -> '{1}' (no space needed)".format(text, text))
+        return text
+    
+    def handle_panel_append_selection(self, selected_text):
+        """处理面板中追加选中文本 - 优先级 3.a"""
+        if not self.has_active_panel():
+            self.debug_print("handle_panel_append_selection(): No active panel")
+            return None
+        
+        current_text = self.get_active_panel_text()
+        formatted_selected = TextUtils.format_keyword_for_input(selected_text)
+        
+        # 检查是否已存在该关键词
+        current_keywords = TextUtils.parse_keywords(current_text)
+        if formatted_selected in current_keywords or selected_text in current_keywords:
+            self.debug_print("handle_panel_append_selection(): Keyword already exists, not appending")
+            return current_text
+        
+        # 构建新文本
+        if current_text and not current_text.endswith(' '):
+            new_text = "{0} {1}".format(current_text, formatted_selected)
+        else:
+            new_text = "{0}{1}".format(current_text, formatted_selected)
+        
+        result = self.format_text_with_space(new_text)
+        self.debug_print("handle_panel_append_selection(): '{0}' + '{1}' -> '{2}'".format(
+            current_text, selected_text, result
+        ))
+        return result
+
+# 全局状态实例
+global_state = GlobalState()
 
 
 class Settings:
@@ -219,6 +376,15 @@ class TextUtils:
                 final_keywords.append(kw)
         
         return final_keywords
+    
+    @staticmethod
+    def format_keyword_for_input(keyword):
+        """格式化关键词以便在输入框中使用"""
+        if '`' in keyword:
+            return '"{}"'.format(keyword)
+        elif ' ' in keyword or "'" in keyword:
+            return '`{}`'.format(keyword)
+        return keyword
 
 
 class UgrepExecutor:
@@ -424,6 +590,7 @@ class UgrepExecutor:
             if ext == "" or file_filter.should_process(filename):
                 filtered.append(item)
         return filtered
+
 
 class SearchEngine:
     def __init__(self, settings, scope, window=None):
@@ -896,7 +1063,7 @@ class DisplayFormatter:
             parts.append("📄 {0}".format(filename))
         
         return "☲ " + " ".join(parts)
-        
+
 
 class BaseQuickLineNavigatorCommand(sublime_plugin.WindowCommand):
     """基础搜索命令类，处理共同的搜索逻辑"""
@@ -911,94 +1078,27 @@ class BaseQuickLineNavigatorCommand(sublime_plugin.WindowCommand):
         self.scope = None
         self._border_timer_id = 0
     
-    def check_active_panel(self):
-        """检查是否有活动的输入面板"""
-        window_id = self.window.id()
-        
-        if window_id in active_input_panels and active_input_panels[window_id]['scope'] == self.scope:
-            saved_input_view = active_input_panels[window_id].get('input_view')
-            if saved_input_view and saved_input_view.is_valid():
-                self.input_view = saved_input_view
-                return True
-        return False
-    
-    def handle_selection_append(self):
-        """处理选中文本追加到输入框"""
-        view = self.window.active_view()
-        if view:
-            has_selection = False
-            for sel in view.sel():
-                if not sel.empty():
-                    has_selection = True
-                    selected_text = view.substr(sel)
-                    if ' ' in selected_text or "'" in selected_text:
-                        selected_text = "`{}`".format(selected_text)
-                    
-                    current_text = self.input_view.substr(sublime.Region(0, self.input_view.size()))
-                    
-                    if current_text and not current_text.endswith(' '):
-                        new_text = "{} {}".format(current_text, selected_text)
-                    else:
-                        new_text = "{}{}".format(current_text, selected_text)
-                    
-                    self.input_view.run_command("select_all")
-                    self.input_view.run_command("insert", {"characters": new_text})
-                    
-                    self.input_view.sel().clear()
-                    end_point = self.input_view.size()
-                    self.input_view.sel().add(sublime.Region(end_point, end_point))
-                    if not new_text.endswith(' '):
-                        self.input_view.run_command("insert", {"characters": " "})
-                    
-                    active_input_panels[self.window.id()]['current_text'] = self.input_view.substr(
-                        sublime.Region(0, self.input_view.size())
-                    )
-                    
-                    self.window.focus_view(self.input_view)
-                    break
-            
-            if not has_selection:
-                current_text = self.input_view.substr(sublime.Region(0, self.input_view.size()))
-                
-                self.input_view.sel().clear()
-                end_point = self.input_view.size()
-                self.input_view.sel().add(sublime.Region(end_point, end_point))
-                
-                if current_text and not current_text.endswith(' '):
-                    self.input_view.run_command("insert", {"characters": " "})
-                    
-                    active_input_panels[self.window.id()]['current_text'] = self.input_view.substr(
-                        sublime.Region(0, self.input_view.size())
-                    )
-                
-                self.window.focus_view(self.input_view)
-
-    
     def get_initial_text(self):
-        """获取初始文本（从选中内容）"""
+        """获取初始文本 - 使用重构后的逻辑"""
+        selected_text = self.get_selected_text()
+        return global_state.get_initial_text_for_new_panel(selected_text, self.scope)
+    
+    def get_selected_text(self):
+        """获取选中文本"""
         view = self.window.active_view()
         if view:
             for sel in view.sel():
                 if not sel.empty():
-                    selected_text = view.substr(sel)
-                    if '`' in selected_text:
-                        selected_text = '"{}"'.format(selected_text)
-                    elif ' ' in selected_text:
-                        selected_text = '`{}`'.format(selected_text)
-                    return selected_text
+                    return view.substr(sel)
         return ""
     
     def setup_input_panel(self, initial_text):
         """设置输入面板"""
-        window_id = self.window.id()
+        global_state.debug_print("setup_input_panel(): scope='{0}', initial_text='{1}'".format(
+            self.scope, initial_text
+        ))
         
-        active_input_panels[window_id] = {
-            'scope': self.scope,
-            'current_text': initial_text,
-            'command_instance': self,
-            'is_active': True
-        }
-        
+        # 创建输入面板
         self.input_view = self.window.show_input_panel(
             UIText.get_search_prompt(self.scope),
             initial_text,
@@ -1007,29 +1107,77 @@ class BaseQuickLineNavigatorCommand(sublime_plugin.WindowCommand):
             self.on_cancel
         )
         
-        if window_id in active_input_panels:
-            active_input_panels[window_id]['input_view'] = self.input_view
+        # 设置活动面板信息
+        global_state.set_active_panel({
+            'scope': self.scope,
+            'input_view': self.input_view,
+            'command_instance': self
+        })
         
-        if initial_text:
-            def setup_cursor():
-                if self.input_view and self.input_view.is_valid():
-                    if window_id in active_input_panels:
-                        self.input_view.sel().clear()
-                        end_point = self.input_view.size()
-                        self.input_view.sel().add(sublime.Region(end_point, end_point))
-                        self.input_view.run_command("insert", {"characters": " "})
-                        active_input_panels[window_id]['current_text'] = self.input_view.substr(
-                            sublime.Region(0, self.input_view.size())
-                        )
-            
-            sublime.set_timeout(setup_cursor, 10)
+        # 将光标移到末尾 - 规则 2.e
+        if self.input_view:
+            self.input_view.sel().clear()
+            end_point = self.input_view.size()
+            self.input_view.sel().add(sublime.Region(end_point, end_point))
+            global_state.debug_print("setup_input_panel(): Cursor moved to end position {0}".format(end_point))
+    
+    def handle_selection_append(self):
+        """处理选中文本追加到输入框 - 优先级 3.a"""
+        if not self.input_view or not self.input_view.is_valid():
+            global_state.debug_print("handle_selection_append(): Invalid input view")
+            return
+        
+        selected_text = self.get_selected_text()
+        if not selected_text:
+            global_state.debug_print("handle_selection_append(): No selected text")
+            return
+        
+        new_text = global_state.handle_panel_append_selection(selected_text)
+        if new_text is None:
+            return
+        
+        # 更新输入框
+        self.input_view.run_command("select_all")
+        self.input_view.run_command("insert", {"characters": new_text})
+        
+        # 将光标移到末尾 - 规则 2.e
+        self.input_view.sel().clear()
+        end_point = self.input_view.size()
+        self.input_view.sel().add(sublime.Region(end_point, end_point))
+        
+        # 确保输入框获得焦点 - 规则 2.c
+        self.window.focus_view(self.input_view)
+        global_state.debug_print("handle_selection_append(): Focus set to input panel")
+    
+    def on_cancel(self):
+        """取消时的处理 - 支持面板切换检测"""
+        global_state.debug_print("on_cancel(): Called, is_panel_switching={0}".format(
+            global_state.is_panel_switching
+        ))
+        
+        # 如果是面板切换导致的取消，不清空关键词
+        if global_state.is_panel_switching:
+            global_state.debug_print("on_cancel(): Panel switching detected, not clearing keywords")
+            self.clear_highlights()
+            return
+        
+        # 只有当前确实有活动面板时才清空关键词（真正的 ESC）
+        if global_state.has_active_panel():
+            global_state.debug_print("on_cancel(): ESC pressed with active panel, clearing keywords")
+            global_state.handle_esc_clear()
+        else:
+            global_state.debug_print("on_cancel(): No active panel, likely from automatic panel closure")
+        
+        self.clear_highlights()
+
+
     
     def on_change(self, input_text):
-        """输入改变时的处理"""
-        global active_input_panels
-        window_id = self.window.id()
-        if window_id in active_input_panels:
-            active_input_panels[window_id]['current_text'] = input_text
+        """输入改变时的处理 - 简化版本"""
+        global_state.debug_print("on_change(): input_text='{0}'".format(input_text))
+        
+        # 总是保存当前输入
+        global_state.save_current_keywords(input_text)
         
         if self.settings.get("preview_on_highlight", True):
             if not input_text or not input_text.strip():
@@ -1041,54 +1189,39 @@ class BaseQuickLineNavigatorCommand(sublime_plugin.WindowCommand):
                 self.highlight_keywords(keywords)
             else:
                 self.clear_highlights()
+
     
-    def on_cancel(self):
-        """取消时的处理"""
-        global active_input_panels
-        window_id = self.window.id()
-        if window_id in active_input_panels:
-            active_input_panels[window_id]['is_active'] = False
-            del active_input_panels[window_id]
-        
-        self._border_timer_id += 1
-        
-        self.clear_highlights()
+    def on_done(self, input_text):
+        """完成时的处理 - 子类必须实现并调用 process_search_done"""
+        raise NotImplementedError
     
     def process_search_done(self, input_text, results):
-        """处理搜索完成的通用逻辑"""
-        window_id = self.window.id()
+        """处理搜索完成的通用逻辑 - 简化版本"""
         keywords = TextUtils.parse_keywords(input_text) if input_text else []
         
+        # 保存关键词
+        global_state.save_current_keywords(input_text)
+        
+        # 清除活动面板
+        global_state.clear_active_panel()
+        
         if not results:
+            # 无结果时重新显示输入框
             sublime.status_message(UIText.get_status_message('no_results_in_scope', scope=self.scope))
-            self.window.show_input_panel(
-                UIText.get_search_prompt(self.scope),
-                input_text,
-                self.on_done,
-                self.on_change,
-                self.on_cancel
-            )
+            self.setup_input_panel(input_text)
             return False
         
+        # 有结果时复制关键词到剪贴板
         if keywords:
             formatted_keywords = []
             for kw in keywords:
-                if ' ' in kw or any(c in kw for c in '"`\''):
-                    formatted_keywords.append('`{}`'.format(kw))
-                else:
-                    formatted_keywords.append(kw)
+                formatted_keywords.append(TextUtils.format_keyword_for_input(kw))
             keywords_text = ' '.join(formatted_keywords)
-            
             sublime.set_clipboard(keywords_text)
-            
-            if window_id in active_input_panels:
-                active_input_panels[window_id]['last_keywords'] = keywords_text
-        
-        if window_id in active_input_panels:
-            active_input_panels[window_id]['is_active'] = False
-            del active_input_panels[window_id]
         
         return True
+
+
     
     def _show_results(self, results, keywords):
         """显示搜索结果"""
@@ -1096,7 +1229,7 @@ class BaseQuickLineNavigatorCommand(sublime_plugin.WindowCommand):
             self.window, results, keywords, self.scope,
             self.on_done, self.on_change, self.on_cancel,
             self._highlight_segment,
-            command_instance=self  
+            command_instance=self
         )
     
     def _highlight_segment(self, view, item, line_number):
@@ -1173,31 +1306,20 @@ class BaseQuickLineNavigatorCommand(sublime_plugin.WindowCommand):
             self._last_highlighted_line = new_line_key
         
         view.show(segment_region, True)
-
     
     def handle_quick_panel_cancel(self, formatted_keywords):
         """处理 quick panel 取消的情况"""
-        window_id = self.window.id()
+        # 保存格式化的关键词
+        global_state.save_current_keywords(formatted_keywords)
         
-        active_input_panels[window_id] = {
-            'scope': self.scope,
-            'current_text': formatted_keywords,
-            'command_instance': self,
-            'is_active': True
-        }
+        # 标记为切换（防止清除关键词）
+        global_state.is_switching = True
         
-        self.input_view = self.window.show_input_panel(
-            UIText.get_search_prompt(self.scope),
-            formatted_keywords,
-            self.on_done,
-            self.on_change,
-            self.on_cancel
-        )
+        # 重新显示输入面板
+        self.setup_input_panel(formatted_keywords)
         
-        if window_id in active_input_panels:
-            active_input_panels[window_id]['input_view'] = self.input_view
-
-
+        sublime.set_timeout(lambda: setattr(global_state, 'is_switching', False), 100)
+    
     def clear_highlights(self):
         """清除高亮 - 子类实现"""
         raise NotImplementedError
@@ -1257,10 +1379,7 @@ class ResultsDisplayHandler:
         """格式化关键词"""
         formatted = []
         for kw in keywords:
-            if ' ' in kw or any(c in kw for c in '"`\''):
-                formatted.append('`{}`'.format(kw))
-            else:
-                formatted.append(kw)
+            formatted.append(TextUtils.format_keyword_for_input(kw))
         return ' '.join(formatted)
     
     @staticmethod
@@ -1270,10 +1389,8 @@ class ResultsDisplayHandler:
             placeholder_keywords = []
             for i, kw in enumerate(keywords):
                 emoji = KEYWORD_EMOJIS[i % len(KEYWORD_EMOJIS)]
-                if ' ' in kw or any(c in kw for c in '"`\''):
-                    placeholder_keywords.append('{0}`{1}`'.format(emoji, kw))
-                else:
-                    placeholder_keywords.append('{0}{1}'.format(emoji, kw))
+                formatted = TextUtils.format_keyword_for_input(kw)
+                placeholder_keywords.append('{0}{1}'.format(emoji, formatted))
             return "Keywords: {} - {} lines found".format(' '.join(placeholder_keywords), results_count)
         else:
             return "All lines - {} lines found".format(results_count)
@@ -1339,69 +1456,176 @@ class ResultsDisplayHandler:
         
         goto_line()
 
-class OpenFilesHelper:
-    """Open Files 搜索的辅助类"""
+
+class InputPanelHandlerMixin:
+    """处理输入面板生命周期的 Mixin"""
     
-    @staticmethod
-    def get_open_files(window):
+    def run_with_input_handling(self):
+        """统一的运行流程 - 无 clear_active_panel() 版本"""
+        selected_text = self.get_selected_text()
+        
+        global_state.debug_print("run_with_input_handling(): scope='{0}', selected_text='{1}', has_active_panel={2}".format(
+            self.scope, selected_text, global_state.has_active_panel()
+        ))
+        
+        # 重置标记
+        global_state.reset_esc_flag()
+        
+        # 检查相同scope的重复调用 - 直接聚焦现有面板
+        if global_state.has_active_panel():
+            active_scope = global_state.active_panel.get('scope', '')
+            active_input_view = global_state.active_panel.get('input_view')
+            
+            if (active_scope == self.scope and 
+                active_input_view and active_input_view.is_valid()):
+                
+                global_state.debug_print("Same scope ({0}) repeat call - focusing existing panel".format(self.scope))
+                
+                # 如果有选中文本，追加到现有面板
+                if selected_text:
+                    sublime.set_timeout(lambda: self.handle_selection_append(), 50)
+                    return
+                
+                # 没有选中文本，只是聚焦现有面板
+                self.window.focus_view(active_input_view)
+                active_input_view.sel().clear()
+                end_point = active_input_view.size()
+                active_input_view.sel().add(sublime.Region(end_point, end_point))
+                return
+        
+        # 有选中文本且有活动面板 - 追加到现有面板（不同scope）
+        if selected_text and global_state.has_active_panel():
+            global_state.debug_print("Appending selected text to existing panel")
+            sublime.set_timeout(lambda: self.handle_selection_append(), 50)
+            return
+        
+        # 准备切换面板
+        if global_state.has_active_panel():
+            # 保存当前面板文本
+            current_text = global_state.get_active_panel_text()
+            if current_text:
+                global_state.stored_keywords = current_text
+                global_state.debug_print("Saved current panel text: '{0}'".format(current_text))
+            
+            # 标记为面板切换状态 - 这是关键！
+            global_state.is_panel_switching = True
+            global_state.debug_print("Marking panel switch: True")
+        
+        # 准备新面板的初始文本
+        initial_text = self.get_initial_text()
+        
+        # 直接创建新面板，让 Sublime 自动处理旧面板的关闭
+        global_state.debug_print("Creating new panel with initial_text: '{0}'".format(initial_text))
+        self.setup_input_panel(initial_text)
+        
+        # 延迟重置切换标记
+        sublime.set_timeout(lambda: setattr(global_state, 'is_panel_switching', False), 100)
+
+
+class QuickLineNavigatorCommand(BaseQuickLineNavigatorCommand, InputPanelHandlerMixin):
+    def run(self, scope="file"):
+        self.scope = scope
+        
+        # Initialize the necessary attributes based on scope
+        if scope == "file":
+            view = self.window.active_view()
+            if not view or not view.file_name():
+                sublime.status_message(UIText.get_status_message('no_file'))
+                return
+            self.file_path = view.file_name()
+        elif scope in ["folder", "project"]:
+            if scope == "folder":
+                settings = Settings()
+                custom_folder = settings.get("search_folder_path", "")
+                if custom_folder and os.path.exists(custom_folder):
+                    self.folders = [custom_folder]
+                else:
+                    self.folders = self.window.folders()
+            else:  # project
+                self.folders = self.window.folders()
+            
+            if not self.folders:
+                sublime.status_message(UIText.get_status_message('no_folder' if scope == "folder" else 'no_project'))
+                return
+        
+        self.run_with_input_handling()
+    
+    def on_done(self, input_text):
+        self.original_keywords = input_text
+        keywords = TextUtils.parse_keywords(input_text) if input_text else []
+        
+        if keywords:
+            highlighter.highlight(self.window.active_view(), keywords)
+        
+        if self.scope == "file":
+            results = self._search_file(keywords)
+        elif self.scope in ["folder", "project"]:
+            results = self._search_folders(keywords)
+        else:
+            results = []
+        
+        if self.process_search_done(input_text, results):
+            self._show_results(results, keywords)
+    
+    def _search_file(self, keywords):
+        search = SearchEngine(self.settings, "file", self.window)
+        return search.search([self.file_path], keywords, self.original_keywords)
+    
+    def _search_folders(self, keywords):
+        search = SearchEngine(self.settings, self.scope, self.window)
+        return search.search(self.folders, keywords, self.original_keywords)
+    
+    def clear_highlights(self):
+        highlighter.clear(self.window.active_view())
+    
+    def highlight_keywords(self, keywords):
+        highlighter.highlight(self.window.active_view(), keywords)
+
+
+class QuickLineNavigatorOpenFilesCommand(BaseQuickLineNavigatorCommand, InputPanelHandlerMixin):
+    def run(self):
+        self.scope = 'open_files'
+        
+        self.open_files = self._get_open_files()
+        
+        if not self.open_files:
+            sublime.status_message(UIText.get_status_message('no_open_files'))
+            return
+        
+        self.run_with_input_handling()
+    
+    def _get_open_files(self):
         """获取所有打开的文件路径"""
         open_files = []
-        for view in window.views():
+        for view in self.window.views():
             if view.file_name():
                 open_files.append(view.file_name())
         return open_files
     
-    @staticmethod
-    def highlight_all_open_views(window, keywords):
-        """高亮所有打开的视图"""
-        for view in window.views():
-            if view and view.is_valid():
-                highlighter.highlight(view, keywords)
+    def on_done(self, input_text):
+        self.original_keywords = input_text
+        keywords = TextUtils.parse_keywords(input_text) if input_text else []
+        
+        if keywords:
+            for view in self.window.views():
+                if view and view.is_valid():
+                    highlighter.highlight(view, keywords)
+        
+        search = SearchEngine(self.settings, "open_files", self.window)
+        results = search.search(self.open_files, keywords, self.original_keywords)
+        
+        if self.process_search_done(input_text, results):
+            self._show_results(results, keywords)
     
-    @staticmethod
-    def clear_all_open_views(window):
-        """清除所有打开视图的高亮"""
-        for view in window.views():
+    def clear_highlights(self):
+        for view in self.window.views():
             if view:
                 highlighter.clear(view)
-
-
-class UIText:
-    SCOPE_NAMES = {
-        'file': 'current file',
-        'folder': 'folder',
-        'project': 'project',
-        'open_files': 'open files',
-        'current_file': 'current file'
-    }
     
-    @classmethod
-    def get_search_prompt(cls, scope):
-        scope_text = cls.SCOPE_NAMES.get(scope, scope)
-        return 'Pre-precision search in {0} with space-separated keywords or "key phrases":'.format(scope_text)
-    
-    @classmethod
-    def get_status_message(cls, message_type, **kwargs):
-        messages = {
-            'no_folder': "No folder open",
-            'no_project': "No project open", 
-            'no_file': "No file open",
-            'no_open_files': "No files open",
-            'no_results': "No results found",
-            'no_results_in_scope': "No results found in {scope}",
-            'filter_enabled': "Extension filters {status} ({mode})",
-            'search_folder_set': "Search folder set to: {path}",
-            'search_folder_cleared': "Search folder cleared",
-            'highlights_cleared': "QuickLineNavigator: All highlights cleared",
-            'view_highlights_cleared': "QuickLineNavigator: Current view highlights cleared"
-        }
-        
-        template = messages.get(message_type, message_type)
-        return template.format(**kwargs)
-    
-    @classmethod
-    def get_scope_display_name(cls, scope):
-        return cls.SCOPE_NAMES.get(scope, scope).title()
+    def highlight_keywords(self, keywords):
+        view = self.window.active_view()
+        if view:
+            highlighter.highlight(view, keywords)
 
 
 class QuickLineNavigatorMenuCommand(sublime_plugin.WindowCommand):
@@ -1451,124 +1675,9 @@ class QuickLineNavigatorMenuCommand(sublime_plugin.WindowCommand):
             menu_items,
             on_select,
             sublime.KEEP_OPEN_ON_FOCUS_LOST,
-            4,
+            0,
             None
         )
-
-
-class QuickLineNavigatorCommand(BaseQuickLineNavigatorCommand):
-    def run(self, scope="file"):
-        self.scope = scope
-        
-        if self.check_active_panel():
-            window_id = self.window.id()
-            if (window_id in active_input_panels and 
-                active_input_panels[window_id]['scope'] == scope and
-                self.input_view and 
-                self.input_view.is_valid()):
-                self.handle_selection_append()
-                return
-        
-        if scope == "folder":
-            search_folder = self.settings.get("search_folder_path", "")
-            if search_folder and os.path.exists(search_folder):
-                self.folders = [search_folder]
-            else:
-                self.folders = self.window.folders()
-                if not self.folders:
-                    sublime.status_message(UIText.get_status_message('no_folder'))
-                    return
-        elif scope == "project":
-            self.folders = self.window.folders()
-            if not self.folders:
-                sublime.status_message(UIText.get_status_message('no_project'))
-                return
-        elif scope == "file":
-            view = self.window.active_view()
-            if not view or not view.file_name():
-                sublime.status_message(UIText.get_status_message('no_file'))
-                return
-            self.file_path = view.file_name()
-        
-        initial_text = self.get_initial_text()
-        self.setup_input_panel(initial_text)
-    
-    def on_done(self, input_text):
-        self.original_keywords = input_text
-        keywords = TextUtils.parse_keywords(input_text) if input_text else []
-        
-        if keywords:
-            highlighter.highlight(self.window.active_view(), keywords)
-        
-        if self.scope == "file":
-            results = self._search_file(keywords)
-        elif self.scope in ["folder", "project"]:
-            results = self._search_folders(keywords)
-        else:
-            results = []
-        
-        if self.process_search_done(input_text, results):
-            self._show_results(results, keywords)
-    
-    def _search_file(self, keywords):
-        search = SearchEngine(self.settings, "file", self.window)
-        return search.search([self.file_path], keywords, self.original_keywords)
-    
-    def _search_folders(self, keywords):
-        search = SearchEngine(self.settings, self.scope, self.window)
-        return search.search(self.folders, keywords, self.original_keywords)
-    
-    def clear_highlights(self):
-        highlighter.clear(self.window.active_view())
-    
-    def highlight_keywords(self, keywords):
-        highlighter.highlight(self.window.active_view(), keywords)
-
-
-
-class QuickLineNavigatorOpenFilesCommand(BaseQuickLineNavigatorCommand):
-    def run(self):
-        self.scope = 'open_files'
-        
-        if self.check_active_panel():
-            window_id = self.window.id()
-            if (window_id in active_input_panels and 
-                active_input_panels[window_id]['scope'] == 'open_files' and
-                self.input_view and 
-                self.input_view.is_valid()):
-                self.handle_selection_append()
-                return
-        
-        self.open_files = OpenFilesHelper.get_open_files(self.window)
-        
-        if not self.open_files:
-            sublime.status_message(UIText.get_status_message('no_open_files'))
-            return
-        
-        initial_text = self.get_initial_text()
-        self.setup_input_panel(initial_text)
-    
-    def on_done(self, input_text):
-        self.original_keywords = input_text
-        keywords = TextUtils.parse_keywords(input_text) if input_text else []
-        
-        if keywords:
-            OpenFilesHelper.highlight_all_open_views(self.window, keywords)
-        
-        search = SearchEngine(self.settings, "open_files", self.window)
-        results = search.search(self.open_files, keywords, self.original_keywords)
-        
-        if self.process_search_done(input_text, results):
-            self._show_results(results, keywords)
-    
-    def clear_highlights(self):
-        OpenFilesHelper.clear_all_open_views(self.window)
-    
-    def highlight_keywords(self, keywords):
-        view = self.window.active_view()
-        if view:
-            highlighter.highlight(view, keywords)
-
 
 
 class ToggleExtensionFiltersCommand(sublime_plugin.WindowCommand):
@@ -1748,6 +1857,13 @@ class ClearCurrentViewHighlightsCommand(sublime_plugin.WindowCommand):
             sublime.status_message(UIText.get_status_message('view_highlights_cleared'))
 
 
+class ClearStoredKeywordsCommand(sublime_plugin.WindowCommand):
+    """清理所有储存的关键词"""
+    def run(self):
+        global_state.clear_active_panel()
+        sublime.status_message("All stored keywords cleared")
+
+
 class QuickLineNavigatorEventListener(sublime_plugin.EventListener):
     def __init__(self):
         super().__init__()
@@ -1758,14 +1874,8 @@ class QuickLineNavigatorEventListener(sublime_plugin.EventListener):
         if not view or not view.is_valid():
             return
         
-        global active_input_panels
-        has_active_search = False
-        for window_id, panel_info in active_input_panels.items():
-            if panel_info.get('is_active', False):
-                has_active_search = True
-                break
-        
-        if has_active_search:
+        # 检查是否有活动的搜索面板
+        if global_state.has_active_panel():
             return
         
         view_id = view.id()
@@ -1793,11 +1903,10 @@ class QuickLineNavigatorEventListener(sublime_plugin.EventListener):
         self.last_row[view_id] = current_row
 
     def on_window_command(self, window, command_name, args):
-        """监听窗口命令，检测 quick panel 的关闭"""
+        """监听窗口命令 - 简化版本"""
         if command_name == "hide_overlay" or command_name == "hide_panel":
-            window_id = window.id()
-            if window_id in active_input_panels and not active_input_panels[window_id].get('is_active', False):
-                highlighter.clear_all()
+            highlighter.clear_all()
+
 
 
 def plugin_loaded():
@@ -1830,6 +1939,7 @@ def plugin_unloaded():
     highlighter.clear_all()
 
 
+# 全局实例
 settings = Settings()
 ugrep = UgrepExecutor()
 highlighter = Highlighter()

@@ -926,8 +926,10 @@ class BaseQuickLineNavigatorCommand(sublime_plugin.WindowCommand):
         """处理选中文本追加到输入框"""
         view = self.window.active_view()
         if view:
+            has_selection = False
             for sel in view.sel():
                 if not sel.empty():
+                    has_selection = True
                     selected_text = view.substr(sel)
                     if ' ' in selected_text or "'" in selected_text:
                         selected_text = "`{}`".format(selected_text)
@@ -954,6 +956,23 @@ class BaseQuickLineNavigatorCommand(sublime_plugin.WindowCommand):
                     
                     self.window.focus_view(self.input_view)
                     break
+            
+            if not has_selection:
+                current_text = self.input_view.substr(sublime.Region(0, self.input_view.size()))
+                
+                self.input_view.sel().clear()
+                end_point = self.input_view.size()
+                self.input_view.sel().add(sublime.Region(end_point, end_point))
+                
+                if current_text and not current_text.endswith(' '):
+                    self.input_view.run_command("insert", {"characters": " "})
+                    
+                    active_input_panels[self.window.id()]['current_text'] = self.input_view.substr(
+                        sublime.Region(0, self.input_view.size())
+                    )
+                
+                self.window.focus_view(self.input_view)
+
     
     def get_initial_text(self):
         """获取初始文本（从选中内容）"""
@@ -1085,25 +1104,20 @@ class BaseQuickLineNavigatorCommand(sublime_plugin.WindowCommand):
         if 'segment_start' not in item or 'segment_end' not in item:
             return
         
-        # 获取当前行信息
         current_file = item.get('file', '')
         current_line_number = item.get('line_number', -1)
         new_line_key = (current_file, current_line_number)
         
-        # 初始化上一次的行信息（如果需要）
         if not hasattr(self, '_last_highlighted_line'):
             self._last_highlighted_line = None
         
-        # 判断是否是新的原始行
         is_new_line = self._last_highlighted_line != new_line_key
         
-        # 清除之前的高亮（但保留同一行的白框）
         if self.current_segment_key and self.highlighted_view_id:
             for window in sublime.windows():
                 for v in window.views():
                     if v.id() == self.highlighted_view_id:
                         v.erase_regions(self.current_segment_key)
-                        # 只有在切换到不同原始行时才清除白框
                         if is_new_line:
                             v.erase_regions(self.current_segment_key + "_border")
                         break
@@ -1121,7 +1135,6 @@ class BaseQuickLineNavigatorCommand(sublime_plugin.WindowCommand):
         self.current_segment_key = key
         self.highlighted_view_id = view.id()
         
-        # 添加白色下划线
         view.add_regions(
             key,
             [segment_region],
@@ -1130,7 +1143,6 @@ class BaseQuickLineNavigatorCommand(sublime_plugin.WindowCommand):
             sublime.DRAW_NO_FILL | sublime.DRAW_NO_OUTLINE | sublime.DRAW_SOLID_UNDERLINE
         )
         
-        # 只有当切换到不同的原始行时才显示新的白框
         total_segments = item.get('total_segments', 1)
         if total_segments > 1 and is_new_line:
             self._last_highlighted_line = new_line_key
@@ -1157,7 +1169,6 @@ class BaseQuickLineNavigatorCommand(sublime_plugin.WindowCommand):
             
             sublime.set_timeout(clear_border, 1000)
         
-        # 更新最后高亮的行信息
         if is_new_line:
             self._last_highlighted_line = new_line_key
         
@@ -1207,7 +1218,6 @@ class ResultsDisplayHandler:
         items, expanded_results = formatter.format_results(results, keywords, scope)
         
         formatted_keywords = ResultsDisplayHandler._format_keywords(keywords)
-        # 修改：传递结果数量到 placeholder text
         placeholder_text = ResultsDisplayHandler._get_placeholder_text(keywords, len(results))
         
         def on_select(index):

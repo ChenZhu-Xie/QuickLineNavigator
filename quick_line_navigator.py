@@ -920,9 +920,8 @@ class DisplayFormatter:
     def _format_single_fast(self, item, index, keyword_info, scope):
         """快速格式化单个结果"""
         line = item['line']
-        # 关键修复：记录原始行和strip后的偏移量
         line_stripped = line.strip()
-        strip_offset = len(line) - len(line.lstrip())  # 左侧空白字符数
+        strip_offset = len(line) - len(line.lstrip())
         
         if not line_stripped:
             return [], []
@@ -930,24 +929,25 @@ class DisplayFormatter:
         formatted_items = []
         expanded_items = []
         
-        # 先检查添加emoji后的完整行宽度
+        # 检查添加emoji后的完整行宽度
         line_with_emojis = self._apply_emoji_highlights_fast(line_stripped, keyword_info)
         line_width = self._get_cached_width(line_with_emojis)
         
-        # 核心逻辑：如果整行（包含emoji）能放下，就不分段
+        # 如果整行能放下，就不分段
         if line_width <= self.max_length:
-            # 不需要分段，使用完整的行
+            # 不分段，使用完整的行
             sub_line = self._format_sub_line_simple(item, index, scope)
             formatted_items.append([line_with_emojis, sub_line])
-            # 关键：保存strip偏移量
+            
+            # 标记为单段
             expanded_item = item.copy()
             expanded_item['strip_offset'] = strip_offset
+            expanded_item['is_single_segment'] = True  # 关键标记
             expanded_items.append(expanded_item)
         else:
-            # 只有当整行真的放不下时，才进行分段
+            # 需要分段
             segments = self._smart_split_original(line_stripped, keyword_info)
             
-            # 对每个分段应用emoji高亮
             for seg_index, (seg_start, seg_end) in enumerate(segments):
                 seg_text = line_stripped[seg_start:seg_end]
                 seg_with_emojis = self._apply_emoji_highlights_fast(seg_text, keyword_info)
@@ -963,7 +963,8 @@ class DisplayFormatter:
                     'segment_end': seg_end,
                     'segment_index': seg_index,
                     'total_segments': len(segments),
-                    'strip_offset': strip_offset  # 保存偏移量
+                    'strip_offset': strip_offset,
+                    'is_single_segment': False  # 标记为多段
                 })
                 expanded_items.append(expanded_item)
         
@@ -1003,7 +1004,9 @@ class DisplayFormatter:
             return [(0, len(text))]
         
         # 计算实际可用的最大长度（考虑emoji开销）
-        effective_max_length = self.max_length - emoji_overhead - 10
+        # 使用更保守的估算，确保每段都能放下
+        effective_max_length = self.max_length - emoji_overhead - 10  # 额外预留10个字符
+        # 但要确保有合理的最小值
         effective_max_length = max(30, effective_max_length)
         
         segments = []
@@ -1015,18 +1018,19 @@ class DisplayFormatter:
             end = start
             current_width = 0
             
-            # 计算这一段能包含多少字符
+            # 首先，尽可能多地包含字符，直到达到有效最大长度
             while end < text_len:
                 char = text[end]
                 char_width = TextUtils.display_width(char)
                 
+                # 检查加上这个字符后是否超过限制
                 if current_width + char_width > effective_max_length:
                     break
                 
                 current_width += char_width
                 end += 1
             
-            # 如果没有前进，至少包含一个字符
+            # 如果这是第一个字符，至少要包含它（避免死循环）
             if end == start and start < text_len:
                 end = start + 1
             
@@ -1038,13 +1042,14 @@ class DisplayFormatter:
             # 寻找最佳断点
             best_break = self._find_best_break_point_original(text, start, end)
             
+            # 确保断点有效
             if best_break > start:
                 end = best_break
             
             # 添加当前段
             segments.append((start, end))
             
-            # 关键修复：下一段从当前段结束位置开始，不跳过任何字符
+            # 移到下一段开始（不跳过任何字符）
             start = end
         
         return segments
@@ -1375,7 +1380,7 @@ class BaseSearchCommand(sublime_plugin.WindowCommand):
                     break
     
     def _apply_new_highlight(self, view, item, line_number, show_border):
-        """应用新的高亮 - 缓存行信息"""
+        """应用新的高亮 - 重构版"""
         # 缓存行信息以避免重复计算
         cache_key = (view.id(), line_number)
         
@@ -1393,36 +1398,42 @@ class BaseSearchCommand(sublime_plugin.WindowCommand):
                 for key in keys_to_remove:
                     del self._line_cache[key]
         
-        # 关键修复：使用item中保存的strip_offset
+        # 获取strip偏移量
         strip_offset = item.get('strip_offset', 0)
         
-        # 如果有segment信息，说明是分段的
-        if 'segment_start' in item and 'segment_end' in item:
-            segment_start = line_start + strip_offset + item['segment_start']
-            segment_end = line_start + strip_offset + item['segment_end']
-        else:
-            # 没有分段，高亮整个stripped行
+        # 判断是否是单段（不分段）
+        is_single_segment = item.get('is_single_segment', False)
+        
+        # 计算高亮区域
+        if is_single_segment:
+            # 单段：高亮整个stripped行
             line_stripped = line_text.strip()
             if line_stripped:
-                # 找到stripped文本在原始行中的位置
                 stripped_start = line_text.find(line_stripped)
                 if stripped_start != -1:
                     segment_start = line_start + stripped_start
                     segment_end = segment_start + len(line_stripped)
                 else:
-                    # fallback
                     segment_start = line_start + strip_offset
                     segment_end = line_start + len(line_text.rstrip())
+            else:
+                return
+        else:
+            # 多段：使用segment信息
+            if 'segment_start' in item and 'segment_end' in item:
+                segment_start = line_start + strip_offset + item['segment_start']
+                segment_end = line_start + strip_offset + item['segment_end']
             else:
                 return
         
         segment_region = sublime.Region(segment_start, segment_end)
         
+        # 设置高亮键
         key = "QuickLineNavSegment_{0}".format(view.id())
         self.current_segment_key = key
         self.highlighted_view_id = view.id()
         
-        # 立即添加段落高亮
+        # 应用白色下划线（单段和多段都一样）
         view.add_regions(
             key,
             [segment_region],
@@ -1431,36 +1442,87 @@ class BaseSearchCommand(sublime_plugin.WindowCommand):
             sublime.DRAW_NO_FILL | sublime.DRAW_NO_OUTLINE | sublime.DRAW_SOLID_UNDERLINE
         )
         
-        # 处理边框
-        total_segments = item.get('total_segments', 1)
-        if total_segments > 1 and show_border:
-            self._border_timer_id += 1
-            current_timer_id = self._border_timer_id
-            
-            border_key = key + "_border"
-            
-            # 立即添加边框
-            view.add_regions(
-                border_key,
-                [line_region],
-                "region.grayish",
-                "",
-                sublime.DRAW_NO_FILL | sublime.DRAW_EMPTY
-            )
-            
-            # 延迟清除边框
-            def clear_border():
-                if current_timer_id == self._border_timer_id and view and view.is_valid():
-                    try:
-                        view.erase_regions(border_key)
-                    except:
-                        pass
-            
-            sublime.set_timeout(clear_border, 500)
+        # 边框处理：只有多段且是新行时才显示边框
+        if not is_single_segment and show_border:
+            total_segments = item.get('total_segments', 1)
+            if total_segments > 1:
+                self._show_temporary_border(view, line_region, key)
         
         # 确保段落可见
         view.show(segment_region, True)
 
+    def _show_temporary_border(self, view, line_region, base_key):
+        """显示临时边框（仅用于多段）"""
+        self._border_timer_id += 1
+        current_timer_id = self._border_timer_id
+        
+        border_key = base_key + "_border"
+        
+        # 立即添加边框
+        view.add_regions(
+            border_key,
+            [line_region],
+            "region.grayish",
+            "",
+            sublime.DRAW_NO_FILL | sublime.DRAW_EMPTY
+        )
+        
+        # 延迟清除边框
+        def clear_border():
+            if current_timer_id == self._border_timer_id and view and view.is_valid():
+                try:
+                    view.erase_regions(border_key)
+                except:
+                    pass
+        
+        sublime.set_timeout(clear_border, 500)
+
+    def _highlight_segment(self, view, item, line_number):
+        """高亮显示段落 - 重构版"""
+        if not view or not view.is_valid():
+            return
+        
+        # 检查是否是新行
+        current_file = item.get('file', '')
+        current_line_number = item.get('line_number', -1)
+        new_line_key = (current_file, current_line_number)
+        
+        if not hasattr(self, '_last_highlighted_line'):
+            self._last_highlighted_line = None
+        
+        is_new_line = self._last_highlighted_line != new_line_key
+        
+        # 清除之前的高亮
+        if self.current_segment_key and self.highlighted_view_id:
+            self._clear_previous_highlights(is_new_line)
+        
+        # 应用新的高亮
+        self._apply_new_highlight(view, item, line_number, is_new_line)
+        
+        if is_new_line:
+            self._last_highlighted_line = new_line_key
+
+    def _clear_previous_highlights(self, clear_border=False):
+        """清除之前的高亮"""
+        if not self.highlighted_view_id:
+            return
+            
+        # 查找包含高亮的视图
+        for window in sublime.windows():
+            for v in window.views():
+                if v.id() == self.highlighted_view_id:
+                    if self.current_segment_key:
+                        try:
+                            v.erase_regions(self.current_segment_key)
+                        except:
+                            pass
+                        
+                        if clear_border:
+                            try:
+                                v.erase_regions(self.current_segment_key + "_border")
+                            except:
+                                pass
+                    break
     
     def handle_quick_panel_cancel(self, formatted_keywords):
         """处理 quick panel 取消的情况"""

@@ -1433,7 +1433,13 @@ class BaseSearchCommand(sublime_plugin.WindowCommand):
         self.current_segment_key = key
         self.highlighted_view_id = view.id()
         
-        # 应用白色下划线（单段和多段都一样）
+        # 1. 先处理边框（如果需要）
+        if not is_single_segment and show_border:
+            total_segments = item.get('total_segments', 1)
+            if total_segments > 1:
+                self._show_temporary_border(view, line_region, key)
+        
+        # 2. 然后应用白色下划线（会覆盖在边框之上）
         view.add_regions(
             key,
             [segment_region],
@@ -1441,12 +1447,6 @@ class BaseSearchCommand(sublime_plugin.WindowCommand):
             "",
             sublime.DRAW_NO_FILL | sublime.DRAW_NO_OUTLINE | sublime.DRAW_SOLID_UNDERLINE
         )
-        
-        # 边框处理：只有多段且是新行时才显示边框
-        if not is_single_segment and show_border:
-            total_segments = item.get('total_segments', 1)
-            if total_segments > 1:
-                self._show_temporary_border(view, line_region, key)
         
         # 确保段落可见
         view.show(segment_region, True)
@@ -1462,7 +1462,7 @@ class BaseSearchCommand(sublime_plugin.WindowCommand):
         view.add_regions(
             border_key,
             [line_region],
-            "region.grayish",
+            "comment",
             "",
             sublime.DRAW_NO_FILL | sublime.DRAW_EMPTY
         )

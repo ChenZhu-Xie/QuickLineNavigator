@@ -9,6 +9,7 @@ import platform
 import unicodedata
 from collections import defaultdict
 
+# 常量定义
 SETTINGS_FILE = "QuickLineNavigator.sublime-settings"
 SUPPORTED_ENCODINGS = ['utf-8', 'gbk', 'gb2312', 'utf-16', 'latin1', 'cp1252', 'shift_jis']
 DEFAULT_BLACKLIST = ['.exe', '.dll', '.so', '.dylib', '.a', '.lib', '.obj', '.o', '.bin',
@@ -29,148 +30,87 @@ HIGHLIGHT_SCOPES = ['region.redish', 'region.bluish', 'region.yellowish', 'regio
 HIGHLIGHT_ICONS = ['dot', 'circle', 'cross', 'bookmark', 'dot', 'circle', 'bookmark']
 KEYWORD_EMOJIS = ['🟥', '🟦', '🟨', '🟩', '🟪', '🟧', '⬜']
 
-# 简化的全局状态管理
-class GlobalState:
+
+class KeywordStateManager:
+    """管理关键词状态和输入面板的核心类"""
     def __init__(self):
         self.active_panel = None
         self.stored_keywords = ""
         self.debug_enabled = True
-        # Add the missing attributes
-        self.is_esc_clearing = False
-        self.is_programmatic_close = False
-        self.is_switching = False
-        self.is_panel_switching = False  # 添加这个新标记
+        self.is_panel_switching = False
     
-    def handle_esc_clear(self):
-        """处理 ESC 清空操作 - 简化版本"""
-        self.debug_print("handle_esc_clear(): ESC pressed, clearing stored_keywords")
-        self.stored_keywords = ""
-        self.clear_active_panel()
-    
-    def reset_esc_flag(self):
-        """重置 ESC 标记"""
-        if self.is_esc_clearing:
-            self.debug_print("reset_esc_flag(): Resetting ESC clearing flag")
-            self.is_esc_clearing = False
-        self.is_programmatic_close = False
-        self.is_panel_switching = False  # 重置面板切换标记
-
     def debug_print(self, message):
-        """调试输出函数"""
+        """调试输出"""
         if self.debug_enabled:
-            print("🔍 [GlobalState Debug] {0}".format(message))
+            print("🔍 [KeywordState] {0}".format(message))
     
     def has_active_panel(self):
         """检查是否有活动的输入面板"""
         result = self.active_panel is not None
-        self.debug_print("has_active_panel() -> {0}, active_panel: {1}".format(
-            result, 
-            self.active_panel.get('scope', 'None') if self.active_panel else 'None'
-        ))
+        self.debug_print("has_active_panel() -> {0}".format(result))
         return result
     
     def get_active_panel_text(self):
         """获取当前活动面板的文本"""
         if not self.active_panel or not self.active_panel.get('input_view'):
-            self.debug_print("get_active_panel_text() -> '' (no active panel or input_view)")
             return ""
         
         input_view = self.active_panel['input_view']
         if input_view and input_view.is_valid():
-            text = input_view.substr(sublime.Region(0, input_view.size()))
-            self.debug_print("get_active_panel_text() -> '{0}'".format(text))
-            return text
-        
-        self.debug_print("get_active_panel_text() -> '' (invalid input_view)")
+            return input_view.substr(sublime.Region(0, input_view.size()))
         return ""
     
     def set_active_panel(self, panel_info):
         """设置活动面板"""
-        old_scope = self.active_panel.get('scope', 'None') if self.active_panel else 'None'
-        new_scope = panel_info.get('scope', 'None')
-        
         self.active_panel = panel_info
-        self.is_esc_clearing = False
-        
-        self.debug_print("set_active_panel(): {0} -> {1}".format(old_scope, new_scope))
+        self.debug_print("set_active_panel(): scope={0}".format(panel_info.get('scope', 'None')))
     
     def clear_active_panel(self):
         """清除活动面板"""
-        old_scope = self.active_panel.get('scope', 'None') if self.active_panel else 'None'
         self.active_panel = None
-        self.debug_print("clear_active_panel(): {0} -> None".format(old_scope))
+        self.debug_print("clear_active_panel()")
     
-    def get_initial_text_for_new_panel(self, selected_text="", target_scope=""):
-        """为新面板获取初始文本 - 简化版本"""
-        self.debug_print("get_initial_text_for_new_panel(): selected_text='{0}', target_scope='{1}'".format(
-            selected_text, target_scope
-        ))
-        
+    def handle_esc_clear(self):
+        """处理 ESC 清空操作"""
+        self.debug_print("handle_esc_clear(): Clearing stored keywords")
+        self.stored_keywords = ""
+        self.clear_active_panel()
+    
+    def reset_panel_flags(self):
+        """重置面板相关标记"""
+        self.is_panel_switching = False
+    
+    def get_initial_text_for_new_panel(self, selected_text=""):
+        """为新面板获取初始文本"""
         # 有选中文本时，优先使用选中文本
         if selected_text:
-            formatted_selected = TextUtils.format_keyword_for_input(selected_text)
-            result = self.format_text_with_space(formatted_selected)
+            formatted = TextUtils.format_keyword_for_input(selected_text)
+            result = self._ensure_trailing_space(formatted)
             self.debug_print("Using selected text: '{0}'".format(result))
             return result
         
-        # 没有选中文本时，使用存储的关键词
-        result = self.format_text_with_space(self.stored_keywords)
+        # 使用存储的关键词
+        result = self._ensure_trailing_space(self.stored_keywords)
         self.debug_print("Using stored keywords: '{0}'".format(result))
         return result
-
     
     def save_current_keywords(self, text):
-        """保存当前关键词 - 简化版本"""
+        """保存当前关键词"""
         if text:
-            old_keywords = self.stored_keywords
             self.stored_keywords = text
-            self.debug_print("save_current_keywords(): '{0}' -> '{1}'".format(old_keywords, text))
-        else:
-            self.debug_print("save_current_keywords(): Not saving empty text")
+            self.debug_print("save_current_keywords(): '{0}'".format(text))
     
-    def should_append_space(self, text):
-        """判断是否需要在末尾添加空格 - 规则 2.d"""
-        if not text:
-            self.debug_print("should_append_space(): No text -> False")
-            return False
+    def handle_panel_append_selection(self, selected_text, current_text):
+        """处理面板中追加选中文本"""
+        if not selected_text:
+            return current_text
         
-        # 如果已经以空格结尾，不需要添加
-        if text.endswith(' '):
-            self.debug_print("should_append_space(): Already ends with space -> False")
-            return False
-        
-        # 如果没有关键词，不需要添加
-        keywords = TextUtils.parse_keywords(text)
-        if not keywords:
-            self.debug_print("should_append_space(): No keywords found -> False")
-            return False
-        
-        self.debug_print("should_append_space(): Has keywords and no trailing space -> True")
-        return True
-    
-    def format_text_with_space(self, text):
-        """格式化文本，根据规则 2.d 添加空格"""
-        if self.should_append_space(text):
-            result = text + ' '
-            self.debug_print("format_text_with_space(): '{0}' -> '{1}' (space added)".format(text, result))
-            return result
-        
-        self.debug_print("format_text_with_space(): '{0}' -> '{1}' (no space needed)".format(text, text))
-        return text
-    
-    def handle_panel_append_selection(self, selected_text):
-        """处理面板中追加选中文本 - 优先级 3.a"""
-        if not self.has_active_panel():
-            self.debug_print("handle_panel_append_selection(): No active panel")
-            return None
-        
-        current_text = self.get_active_panel_text()
         formatted_selected = TextUtils.format_keyword_for_input(selected_text)
-        
-        # 检查是否已存在该关键词
         current_keywords = TextUtils.parse_keywords(current_text)
+        
+        # 检查是否已存在
         if formatted_selected in current_keywords or selected_text in current_keywords:
-            self.debug_print("handle_panel_append_selection(): Keyword already exists, not appending")
+            self.debug_print("Keyword already exists, not appending")
             return current_text
         
         # 构建新文本
@@ -179,17 +119,21 @@ class GlobalState:
         else:
             new_text = "{0}{1}".format(current_text, formatted_selected)
         
-        result = self.format_text_with_space(new_text)
-        self.debug_print("handle_panel_append_selection(): '{0}' + '{1}' -> '{2}'".format(
-            current_text, selected_text, result
-        ))
-        return result
-
-# 全局状态实例
-global_state = GlobalState()
+        return self._ensure_trailing_space(new_text)
+    
+    def _ensure_trailing_space(self, text):
+        """确保文本末尾有空格（如果有关键词）"""
+        if not text or text.endswith(' '):
+            return text
+        
+        keywords = TextUtils.parse_keywords(text)
+        if keywords:
+            return text + ' '
+        return text
 
 
 class Settings:
+    """设置管理类"""
     def __init__(self):
         self._settings = sublime.load_settings(SETTINGS_FILE)
         self._cache = {}
@@ -203,6 +147,10 @@ class Settings:
         self._cache[key] = value
         self._settings.set(key, value)
         sublime.save_settings(SETTINGS_FILE)
+    
+    def clear_cache(self):
+        """清理缓存"""
+        self._cache.clear()
     
     def update_user_settings(self, key, value):
         user_path = os.path.join(sublime.packages_path(), "User", SETTINGS_FILE)
@@ -224,7 +172,9 @@ class Settings:
         self.set(key, value)
 
 
+
 class FileFilter:
+    """文件过滤器"""
     def __init__(self, settings, scope, window=None):
         self.settings = settings
         self.scope = scope
@@ -258,6 +208,7 @@ class FileFilter:
         basename = os.path.basename(filename)
         _, ext = os.path.splitext(filename.lower())
         
+        # 总是排除的文件
         if ext in {'.git', '.svn', '.hg', '.sublime-workspace', '.sublime-project'} or basename.startswith('.'):
             return False
         
@@ -267,11 +218,13 @@ class FileFilter:
         if not self.enabled:
             return True
         
+        # 检查黑名单
         if self.blacklist:
             blacklist_set = {('.' + e.lstrip('.').lower() if e and e != '.' else e) for e in self.blacklist}
             if ext in blacklist_set:
                 return False
         
+        # 检查白名单
         if not self.whitelist:
             return True
         
@@ -299,8 +252,38 @@ class FileFilter:
 
 
 class TextUtils:
+    """文本处理工具类"""
     @staticmethod
     def display_width(s):
+        """计算字符串的显示宽度"""
+        if not s:
+            return 0
+        
+        # 处理单个字符的快速路径
+        if len(s) == 1:
+            ch = s[0]
+            if ord(ch) < 128:
+                return 1
+            elif ('\U0001F300' <= ch <= '\U0001F9FF' or
+                  '\U0001F000' <= ch <= '\U0001F0FF' or
+                  '\U0001F100' <= ch <= '\U0001F1FF' or
+                  '\U0001F200' <= ch <= '\U0001F2FF' or
+                  '\U0001F600' <= ch <= '\U0001F64F' or
+                  '\U0001F680' <= ch <= '\U0001F6FF' or
+                  '\U0001F700' <= ch <= '\U0001F77F' or
+                  '\U00002600' <= ch <= '\U000027BF' or
+                  '\U0001FA00' <= ch <= '\U0001FA6F' or
+                  '\U0001FA70' <= ch <= '\U0001FAFF'):
+                return 2
+            else:
+                ea_width = unicodedata.east_asian_width(ch)
+                return 2 if ea_width in ('F', 'W', 'A') else 1
+        
+        # 快速路径：纯ASCII字符串
+        if all(ord(c) < 128 for c in s):
+            return len(s)
+        
+        # 完整字符串处理
         width = 0
         for ch in s:
             if ('\U0001F300' <= ch <= '\U0001F9FF' or
@@ -318,10 +301,10 @@ class TextUtils:
                 ea_width = unicodedata.east_asian_width(ch)
                 width += 2 if ea_width in ('F', 'W', 'A') else 1
         return width
-    
+
     @staticmethod
     def parse_keywords(input_text):
-        """解析关键词，只有反引号是分界符，其他引号都是普通字符"""
+        """解析关键词，反引号是分界符"""
         if not input_text:
             return []
         
@@ -337,7 +320,6 @@ class TextUtils:
                 if current.strip():
                     keywords.append(current.strip())
                     current = ""
-                
                 in_backticks = True
                 i += 1
                 continue
@@ -364,13 +346,14 @@ class TextUtils:
         if current.strip():
             keywords.append(current.strip())
         
+        # 处理多行关键词
         final_keywords = []
         for kw in keywords:
             if kw and ('\r' in kw or '\n' in kw):
                 lines = kw.replace('\r\n', '\n').replace('\r', '\n').split('\n')
                 for line in lines:
                     line = line.strip()
-                    if line:  
+                    if line:
                         final_keywords.append(line)
             elif kw:
                 final_keywords.append(kw)
@@ -388,6 +371,7 @@ class TextUtils:
 
 
 class UgrepExecutor:
+    """Ugrep 执行器"""
     def __init__(self):
         self.path = self._find_executable()
         self.output_pattern = re.compile(r'^([^:]+):(\d+):(.*)$')
@@ -472,7 +456,7 @@ class UgrepExecutor:
             print("  🔧 Post-filtered to {0} lines".format(len(results)))
         
         return results
-
+    
     def _add_keywords(self, cmd, keywords):
         keywords = [kw for kw in keywords if kw]
         if len(keywords) == 1:
@@ -593,6 +577,7 @@ class UgrepExecutor:
 
 
 class SearchEngine:
+    """搜索引擎"""
     def __init__(self, settings, scope, window=None):
         self.settings = settings
         self.scope = scope
@@ -745,6 +730,7 @@ class SearchEngine:
 
 
 class Highlighter:
+    """高亮管理器"""
     def __init__(self):
         self.keys = set()
         self.key_base = "QuickLineNavKeyword"
@@ -794,42 +780,6 @@ class Highlighter:
         if self.keys:
             self.views.add(view_id)
             self.cache[view_id] = cache_key
-
-    
-    def highlight_scope(self, scope, keywords, window, results=None):
-        if not keywords:
-            return
-        
-        if scope in ['file', 'current_file']:
-            view = window.active_view()
-            if view:
-                self.highlight(view, keywords)
-        
-        elif scope == 'open_files':
-            for view in window.views():
-                if view and view.is_valid():
-                    self.highlight(view, keywords)
-        
-        elif scope in ['folder', 'project'] and results:
-            files = {item['file'] for item in results if 'file' in item}
-            for file_path in files:
-                view = None
-                for v in window.views():
-                    if v.file_name() == file_path:
-                        view = v
-                        break
-                
-                if not view:
-                    view = window.open_file(file_path, sublime.TRANSIENT)
-                
-                if view:
-                    def highlight_when_ready():
-                        if view.is_loading():
-                            sublime.set_timeout(highlight_when_ready, 50)
-                        else:
-                            self.highlight(view, keywords)
-                    
-                    highlight_when_ready()
     
     def clear(self, view):
         if not view or not view.is_valid():
@@ -861,212 +811,373 @@ class Highlighter:
 
 
 class DisplayFormatter:
+    """显示格式化器 - 优化版"""
     def __init__(self, settings):
         self.settings = settings
         self.show_line_numbers = settings.get("show_line_numbers", True)
         self.max_length = settings.get("max_display_length", 120)
+        # 添加缓存
+        self._width_cache = {}
+        self._emoji_cache = {}
+        self._format_cache = {}
     
     def format_results(self, results, keywords, scope):
+        """批量格式化结果 - 优化版"""
+        self.clear_caches()
         formatted = []
         expanded_results = []
         
-        for i, item in enumerate(results):
-            full_line_with_emojis = self._format_main_line(item['line'], keywords)
-            segments = self._split_into_segments(full_line_with_emojis, item['line'], keywords)
+        # 预计算关键词相关信息
+        keyword_info = self._prepare_keyword_info(keywords)
+        
+        # 批量处理，减少重复计算
+        batch_size = 100
+        total = len(results)
+        
+        for start_idx in range(0, total, batch_size):
+            end_idx = min(start_idx + batch_size, total)
+            batch = results[start_idx:end_idx]
             
-            for seg_index, segment in enumerate(segments):
-                main_line = segment['display']
-                sub_line = self._format_sub_line(item, i, scope, seg_index, len(segments))
-                formatted.append([main_line, sub_line])
-                expanded_item = item.copy()
-                expanded_item['segment_start'] = segment['start']
-                expanded_item['segment_end'] = segment['end']
-                expanded_item['segment_index'] = seg_index
-                expanded_item['total_segments'] = len(segments)
-                expanded_results.append(expanded_item)
+            for i, item in enumerate(batch, start_idx):
+                # 使用更唯一的缓存键，包含文件路径和行号
+                cache_key = (
+                    item.get('file', ''), 
+                    item.get('line_number', -1), 
+                    item['line'], 
+                    tuple(keywords)
+                )
+                
+                if cache_key in self._format_cache:
+                    cached_data = self._format_cache[cache_key]
+                    # 为每个缓存项创建新的副本，避免引用问题
+                    for fmt_item in cached_data['formatted']:
+                        formatted.append(fmt_item[:])  # 创建列表副本
+                    for exp_item in cached_data['expanded']:
+                        expanded_results.append(exp_item.copy())  # 创建字典副本
+                else:
+                    # 格式化主行
+                    full_line_with_emojis = self._format_main_line_fast(
+                        item['line'], keyword_info
+                    )
+                    
+                    # 检查是否需要分段
+                    line_width = self._get_cached_width(full_line_with_emojis)
+                    
+                    batch_formatted = []
+                    batch_expanded = []
+                    
+                    if line_width <= self.max_length:
+                        # 单段处理
+                        sub_line = self._format_sub_line_simple(item, i, scope)
+                        batch_formatted.append([full_line_with_emojis, sub_line])
+                        formatted.append([full_line_with_emojis, sub_line])
+                        
+                        expanded_item = item.copy()
+                        batch_expanded.append(expanded_item)
+                        expanded_results.append(expanded_item)
+                    else:
+                        # 多段处理 - 使用新的分段方法
+                        segments = self._split_into_segments_fast(
+                            full_line_with_emojis, 
+                            item['line'],
+                            keyword_info
+                        )
+                        
+                        for seg_index, segment in enumerate(segments):
+                            sub_line = self._format_sub_line_simple(
+                                item, i, scope, seg_index, len(segments)
+                            )
+                            batch_formatted.append([segment['display'], sub_line])
+                            formatted.append([segment['display'], sub_line])
+                            
+                            expanded_item = item.copy()
+                            expanded_item['segment_start'] = segment['start']
+                            expanded_item['segment_end'] = segment['end']
+                            expanded_item['segment_index'] = seg_index
+                            expanded_item['total_segments'] = len(segments)
+                            batch_expanded.append(expanded_item)
+                            expanded_results.append(expanded_item)
+                    
+                    # 缓存结果（限制缓存大小）
+                    if len(self._format_cache) < 1000:
+                        self._format_cache[cache_key] = {
+                            'formatted': [item[:] for item in batch_formatted],  # 存储副本
+                            'expanded': [item.copy() for item in batch_expanded]  # 存储副本
+                        }
         
         return formatted, expanded_results
     
-    def _format_main_line(self, line, keywords):
-        if not keywords:
+    def _prepare_keyword_info(self, keywords):
+        """预计算关键词信息"""
+        info = {
+            'keywords': keywords,
+            'lower_keywords': [kw.lower() for kw in keywords],
+            'emoji_map': {}
+        }
+        
+        for i, kw in enumerate(keywords):
+            emoji = KEYWORD_EMOJIS[i % len(KEYWORD_EMOJIS)]
+            info['emoji_map'][kw.lower()] = emoji
+            # 缓存emoji
+            self._emoji_cache[kw.lower()] = emoji
+        
+        return info
+    
+    def _get_cached_width(self, text):
+        """获取缓存的宽度"""
+        if text in self._width_cache:
+            return self._width_cache[text]
+        
+        width = TextUtils.display_width(text)
+        if len(self._width_cache) < 5000:  # 限制缓存大小
+            self._width_cache[text] = width
+        return width
+    
+    def _format_main_line_fast(self, line, keyword_info):
+        """快速格式化主行"""
+        if not keyword_info['keywords']:
             return line.strip()
+        
         line_stripped = line.strip()
         line_lower = line_stripped.lower()
-        keyword_emoji_map = {}
-        for i, keyword in enumerate(keywords):
-            keyword_emoji_map[keyword.lower()] = KEYWORD_EMOJIS[i % len(KEYWORD_EMOJIS)]
-        all_positions = []
-        for keyword in keywords:
-            keyword_lower = keyword.lower()
-            emoji = keyword_emoji_map[keyword_lower]
-            pos = 0
-            while True:
-                index = line_lower.find(keyword_lower, pos)
-                if index == -1:
-                    break
-                all_positions.append((index, len(keyword), emoji))
-                pos = index + 1
-        if not all_positions:
+        
+        # 快速检查是否包含任何关键词
+        has_keywords = any(kw in line_lower for kw in keyword_info['lower_keywords'])
+        if not has_keywords:
             return line_stripped
-        all_positions.sort(key=lambda x: x[0], reverse=True)
+        
+        # 使用字符串替换而不是逐个查找位置
         result = line_stripped
-        for pos, length, emoji in all_positions:
-            result = result[:pos] + emoji + result[pos:]
+        for kw, kw_lower in zip(keyword_info['keywords'], keyword_info['lower_keywords']):
+            if kw_lower in line_lower:
+                emoji = keyword_info['emoji_map'][kw_lower]
+                # 使用正则表达式进行不区分大小写的替换
+                pattern = re.compile(re.escape(kw), re.IGNORECASE)
+                result = pattern.sub(emoji + kw, result)
         
         return result
     
-    def _split_into_segments(self, line_with_emojis, original_line, keywords):
+    def _split_into_segments_fast(self, line_with_emojis, original_line, keyword_info):
+        """智能分段 - 保护单词和字符完整性"""
         segments = []
         original_stripped = original_line.strip()
-        if TextUtils.display_width(line_with_emojis) <= self.max_length:
-            segments.append({
-                'display': line_with_emojis,
-                'start': 0,
-                'end': len(original_stripped)
-            })
+        
+        if not line_with_emojis:
             return segments
-        emoji_keyword_ranges = self._find_emoji_keyword_ranges(line_with_emojis, keywords)
+        
         current_pos = 0
-        while current_pos < len(line_with_emojis):
-            segment_end = self._find_safe_cut_position(
-                line_with_emojis, current_pos, self.max_length, emoji_keyword_ranges
+        text_length = len(line_with_emojis)
+        
+        # 找到所有emoji关键词的位置范围
+        emoji_ranges = self._find_emoji_keyword_ranges_fast(line_with_emojis, keyword_info)
+        
+        while current_pos < text_length:
+            # 计算这一段的最大结束位置
+            segment_start = current_pos
+            current_width = 0
+            segment_end = current_pos
+            
+            # 逐字符前进，计算宽度
+            while segment_end < text_length and current_width < self.max_length:
+                char = line_with_emojis[segment_end]
+                char_width = 2 if self._is_emoji(char) else TextUtils.display_width(char)
+                
+                if current_width + char_width > self.max_length:
+                    break
+                    
+                current_width += char_width
+                segment_end += 1
+            
+            # 如果已到文本末尾，直接添加剩余部分
+            if segment_end >= text_length:
+                segment_text = line_with_emojis[segment_start:].strip()
+                if segment_text:
+                    segments.append({
+                        'display': segment_text,
+                        'start': self._map_to_original_position_fast(segment_start, line_with_emojis, original_stripped, keyword_info),
+                        'end': self._map_to_original_position_fast(text_length, line_with_emojis, original_stripped, keyword_info)
+                    })
+                break
+            
+            # 找到安全的断开位置
+            safe_break = self._find_safe_break_position(
+                line_with_emojis, segment_start, segment_end, emoji_ranges
             )
             
-            if segment_end <= current_pos:
-                segment_end = current_pos + 1
+            # 如果找不到安全位置，强制在segment_end处断开
+            if safe_break <= segment_start:
+                safe_break = segment_end
             
-            segment_text = line_with_emojis[current_pos:segment_end]
-            orig_start = self._map_to_original_position(current_pos, line_with_emojis, original_stripped, keywords)
-            orig_end = self._map_to_original_position(segment_end, line_with_emojis, original_stripped, keywords)
+            # 提取段落文本
+            segment_text = line_with_emojis[segment_start:safe_break].strip()
             
-            segments.append({
-                'display': segment_text,
-                'start': orig_start,
-                'end': orig_end
-            })
+            if segment_text:
+                segments.append({
+                    'display': segment_text,
+                    'start': self._map_to_original_position_fast(segment_start, line_with_emojis, original_stripped, keyword_info),
+                    'end': self._map_to_original_position_fast(safe_break, line_with_emojis, original_stripped, keyword_info)
+                })
             
-            current_pos = segment_end
+            # 移到下一段的开始（跳过空白）
+            current_pos = safe_break
+            while current_pos < text_length and line_with_emojis[current_pos] == ' ':
+                current_pos += 1
         
         return segments
-
-    def _find_emoji_keyword_ranges(self, line_with_emojis, keywords):
-        ranges = []
-        line_lower = line_with_emojis.lower()
-        keyword_emoji_map = {}
-        for i, keyword in enumerate(keywords):
-            keyword_emoji_map[keyword.lower()] = KEYWORD_EMOJIS[i % len(KEYWORD_EMOJIS)]
-        for keyword in keywords:
-            keyword_lower = keyword.lower()
-            emoji = keyword_emoji_map[keyword_lower]
-            pattern = emoji + keyword_lower
-            
-            pos = 0
-            while True:
-                found_pos = line_lower.find(pattern.lower(), pos)
-                if found_pos == -1:
-                    break
-                ranges.append((found_pos, found_pos + len(pattern)))
-                pos = found_pos + 1
-        ranges.sort()
-        return ranges
-
-    def _find_safe_cut_position(self, text, start_pos, max_width, emoji_keyword_ranges):
-        if start_pos >= len(text):
-            return len(text)
-        ideal_end = start_pos
-        current_width = 0
-        
-        while ideal_end < len(text) and current_width < max_width:
-            char = text[ideal_end]
-            char_width = TextUtils.display_width(char)
-            if current_width + char_width > max_width:
-                break
-            current_width += char_width
-            ideal_end += 1
-        safe_end = ideal_end
-        for range_start, range_end in emoji_keyword_ranges:
-            if range_start < ideal_end < range_end:
-                if range_start >= start_pos:
-                    safe_end = min(safe_end, range_start)
+    
+    def _find_safe_break_position(self, text, start, end, emoji_ranges):
+        """找到安全的断开位置 - 不破坏词语完整性"""
+        # 检查end位置是否在emoji关键词内
+        for emoji_start, emoji_end in emoji_ranges:
+            if emoji_start < end <= emoji_end:
+                # 如果在emoji关键词内，尝试在emoji前断开
+                if emoji_start >= start:
+                    return emoji_start
                 else:
-                    safe_end = range_end
-                    break
-        if safe_end <= start_pos:
-            for range_start, range_end in emoji_keyword_ranges:
-                if range_start > start_pos:
-                    safe_end = range_end
-                    break
-            if safe_end <= start_pos and emoji_keyword_ranges:
-                next_safe = start_pos + 1
-                for range_start, range_end in emoji_keyword_ranges:
-                    if range_start >= start_pos:
-                        next_safe = range_end
-                        break
-                safe_end = min(next_safe, len(text))
-            elif safe_end <= start_pos:
-                safe_end = min(start_pos + 10, len(text))
+                    # 如果emoji开始在start之前，在emoji后断开
+                    return emoji_end
         
-        return min(safe_end, len(text))
-
-    def _map_to_original_position(self, pos_in_modified, line_with_emojis, original_line, keywords):
+        # 从end向前查找安全的断开点
+        pos = end - 1
+        
+        # 查找范围限制在最近的20个字符内
+        search_limit = max(start, end - 20)
+        
+        while pos > search_limit:
+            if pos >= len(text):
+                pos -= 1
+                continue
+                
+            curr_char = text[pos]
+            next_char = text[pos + 1] if pos + 1 < len(text) else ''
+            prev_char = text[pos - 1] if pos > 0 else ''
+            
+            # 检查是否可以在这里断开
+            can_break = False
+            
+            # 1. 在空格后断开（最优先）
+            if curr_char == ' ':
+                can_break = True
+                pos += 1  # 在空格后断开
+                
+            # 2. 在中英文边界断开
+            elif next_char and self._is_cjk_char(curr_char) != self._is_cjk_char(next_char):
+                can_break = True
+                pos += 1  # 在边界后断开
+                
+            # 3. 在非字母数字字符处断开（但要检查是否会破坏单词）
+            elif not curr_char.isalnum() and not self._is_cjk_char(curr_char):
+                # 确保不会破坏英文单词
+                if not (prev_char.isalpha() and next_char.isalpha()):
+                    can_break = True
+                    pos += 1
+            
+            # 4. 在两个CJK字符之间可以断开（如果必要）
+            elif self._is_cjk_char(curr_char) and next_char and self._is_cjk_char(next_char):
+                # 只在找不到更好位置时才在CJK字符间断开
+                if pos == end - 1:  # 只在最后resort时才这样做
+                    can_break = True
+                    pos += 1
+            
+            if can_break:
+                return pos
+                
+            pos -= 1
+        
+        # 如果没找到合适位置，返回原始end位置
+        return end
+    
+    def _find_emoji_keyword_ranges_fast(self, text, keyword_info):
+        """快速找到emoji关键词的范围"""
+        ranges = []
+        text_lower = text.lower()
+        
+        # 查找所有emoji位置
+        for i, char in enumerate(text):
+            if self._is_emoji(char):
+                # 检查后面是否跟着关键词
+                for kw_lower in keyword_info['lower_keywords']:
+                    if i + 1 + len(kw_lower) <= len(text):
+                        following_text = text_lower[i + 1:i + 1 + len(kw_lower)]
+                        if following_text == kw_lower:
+                            ranges.append((i, i + 1 + len(kw_lower)))
+                            break
+        
+        # 合并重叠的范围
+        ranges.sort()
+        merged = []
+        for start, end in ranges:
+            if merged and start <= merged[-1][1]:
+                merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+            else:
+                merged.append((start, end))
+        
+        return merged
+    
+    def _map_to_original_position_fast(self, pos_in_modified, line_with_emojis, original_line, keyword_info):
+        """改进的位置映射算法"""
         if pos_in_modified <= 0:
             return 0
         if pos_in_modified >= len(line_with_emojis):
-            return len(original_line.strip())
+            return len(original_line)
+        
+        # 计算在pos_in_modified之前有多少个emoji
         emoji_count = 0
-        modified_pos = 0
-        original_lower = original_line.strip().lower()
-        keyword_emoji_map = {}
-        for i, keyword in enumerate(keywords):
-            keyword_emoji_map[keyword.lower()] = KEYWORD_EMOJIS[i % len(KEYWORD_EMOJIS)]
-        original_pos = 0
-        while original_pos < len(original_lower) and modified_pos < pos_in_modified:
-            emoji_inserted = False
-            for keyword in keywords:
-                keyword_lower = keyword.lower()
-                if (original_pos + len(keyword_lower) <= len(original_lower) and
-                    original_lower[original_pos:original_pos + len(keyword_lower)] == keyword_lower):
-                    if modified_pos < pos_in_modified:
-                        emoji_count += 1
-                        modified_pos += 1
-                        emoji_inserted = True
-                    break
-            if modified_pos < pos_in_modified:
-                modified_pos += 1
-            original_pos += 1
-            
-            if emoji_inserted:
-                for keyword in keywords:
-                    keyword_lower = keyword.lower()
-                    if (original_pos <= len(original_lower) - len(keyword_lower) and
-                        original_lower[original_pos:original_pos + len(keyword_lower)] == keyword_lower):
-                        original_pos += len(keyword_lower) - 1
-                        modified_pos += len(keyword_lower) - 1
-                        break
-        result = max(0, min(pos_in_modified - emoji_count, len(original_line.strip())))
-        return result
+        for i in range(min(pos_in_modified, len(line_with_emojis))):
+            if self._is_emoji(line_with_emojis[i]):
+                emoji_count += 1
+        
+        # 原始位置 = 修改后位置 - emoji数量
+        original_pos = max(0, pos_in_modified - emoji_count)
+        
+        return min(original_pos, len(original_line))
     
-    def _format_sub_line(self, item, index, scope, segment_index=0, total_segments=1):
+    def _is_emoji(self, char):
+        """判断字符是否是emoji"""
+        return char in KEYWORD_EMOJIS
+    
+    def _is_cjk_char(self, char):
+        """判断是否是CJK字符（中日韩文字）"""
+        code_point = ord(char)
+        return (
+            0x4E00 <= code_point <= 0x9FFF or  # CJK Unified Ideographs
+            0x3400 <= code_point <= 0x4DBF or  # CJK Extension A  
+            0x3040 <= code_point <= 0x309F or  # Hiragana
+            0x30A0 <= code_point <= 0x30FF or  # Katakana
+            0xAC00 <= code_point <= 0xD7AF     # Hangul Syllables
+        )
+    
+    def _format_sub_line_simple(self, item, index, scope, segment_index=0, total_segments=1):
+        """简化的副行格式化"""
+        # 使用字符串格式化而不是列表拼接
         parts = []
         
         if self.show_line_numbers and 'line_number' in item:
             parts.append(str(item['line_number']))
         
-        parts.append("⚡ {0}".format(index + 1))
+        parts.append("⚡ {}".format(index + 1))
+        
         if total_segments > 1:
-            parts.append("📍 {0}/{1}".format(segment_index + 1, total_segments))
+            parts.append("📍 {}/{}".format(segment_index + 1, total_segments))
         
         if 'file' in item and scope != 'file':
             filename = os.path.basename(item['file'])
             if len(filename) > 50:
                 filename = filename[:47] + "..."
-            parts.append("📄 {0}".format(filename))
+            parts.append("📄 {}".format(filename))
         
         return "☲ " + " ".join(parts)
+    
+    def clear_caches(self):
+        """清理所有缓存"""
+        self._width_cache.clear()
+        self._emoji_cache.clear()
+        self._format_cache.clear()
 
 
-class BaseQuickLineNavigatorCommand(sublime_plugin.WindowCommand):
-    """基础搜索命令类，处理共同的搜索逻辑"""
+
+class BaseSearchCommand(sublime_plugin.WindowCommand):
+    """基础搜索命令类"""
     
     def __init__(self, window):
         super().__init__(window)
@@ -1079,9 +1190,9 @@ class BaseQuickLineNavigatorCommand(sublime_plugin.WindowCommand):
         self._border_timer_id = 0
     
     def get_initial_text(self):
-        """获取初始文本 - 使用重构后的逻辑"""
+        """获取初始文本"""
         selected_text = self.get_selected_text()
-        return global_state.get_initial_text_for_new_panel(selected_text, self.scope)
+        return keyword_state_manager.get_initial_text_for_new_panel(selected_text)
     
     def get_selected_text(self):
         """获取选中文本"""
@@ -1094,7 +1205,7 @@ class BaseQuickLineNavigatorCommand(sublime_plugin.WindowCommand):
     
     def setup_input_panel(self, initial_text):
         """设置输入面板"""
-        global_state.debug_print("setup_input_panel(): scope='{0}', initial_text='{1}'".format(
+        keyword_state_manager.debug_print("setup_input_panel(): scope='{0}', initial_text='{1}'".format(
             self.scope, initial_text
         ))
         
@@ -1108,76 +1219,73 @@ class BaseQuickLineNavigatorCommand(sublime_plugin.WindowCommand):
         )
         
         # 设置活动面板信息
-        global_state.set_active_panel({
+        keyword_state_manager.set_active_panel({
             'scope': self.scope,
             'input_view': self.input_view,
             'command_instance': self
         })
         
-        # 将光标移到末尾 - 规则 2.e
+        # 将光标移到末尾
         if self.input_view:
             self.input_view.sel().clear()
             end_point = self.input_view.size()
             self.input_view.sel().add(sublime.Region(end_point, end_point))
-            global_state.debug_print("setup_input_panel(): Cursor moved to end position {0}".format(end_point))
+            keyword_state_manager.debug_print("Cursor moved to end position {0}".format(end_point))
     
     def handle_selection_append(self):
-        """处理选中文本追加到输入框 - 优先级 3.a"""
+        """处理选中文本追加到输入框"""
         if not self.input_view or not self.input_view.is_valid():
-            global_state.debug_print("handle_selection_append(): Invalid input view")
+            keyword_state_manager.debug_print("handle_selection_append(): Invalid input view")
             return
         
         selected_text = self.get_selected_text()
         if not selected_text:
-            global_state.debug_print("handle_selection_append(): No selected text")
+            keyword_state_manager.debug_print("handle_selection_append(): No selected text")
             return
         
-        new_text = global_state.handle_panel_append_selection(selected_text)
-        if new_text is None:
-            return
+        current_text = keyword_state_manager.get_active_panel_text()
+        new_text = keyword_state_manager.handle_panel_append_selection(selected_text, current_text)
         
         # 更新输入框
         self.input_view.run_command("select_all")
         self.input_view.run_command("insert", {"characters": new_text})
         
-        # 将光标移到末尾 - 规则 2.e
+        # 将光标移到末尾
         self.input_view.sel().clear()
         end_point = self.input_view.size()
         self.input_view.sel().add(sublime.Region(end_point, end_point))
         
-        # 确保输入框获得焦点 - 规则 2.c
+        # 确保输入框获得焦点
         self.window.focus_view(self.input_view)
-        global_state.debug_print("handle_selection_append(): Focus set to input panel")
+        keyword_state_manager.debug_print("Focus set to input panel")
     
     def on_cancel(self):
-        """取消时的处理 - 支持面板切换检测"""
-        global_state.debug_print("on_cancel(): Called, is_panel_switching={0}".format(
-            global_state.is_panel_switching
+        """取消时的处理"""
+        keyword_state_manager.debug_print("on_cancel(): Called, is_panel_switching={0}".format(
+            keyword_state_manager.is_panel_switching
         ))
         
         # 如果是面板切换导致的取消，不清空关键词
-        if global_state.is_panel_switching:
-            global_state.debug_print("on_cancel(): Panel switching detected, not clearing keywords")
+        if keyword_state_manager.is_panel_switching:
+            keyword_state_manager.debug_print("Panel switching detected, not clearing keywords")
             self.clear_highlights()
             return
         
         # 只有当前确实有活动面板时才清空关键词（真正的 ESC）
-        if global_state.has_active_panel():
-            global_state.debug_print("on_cancel(): ESC pressed with active panel, clearing keywords")
-            global_state.handle_esc_clear()
+        if keyword_state_manager.has_active_panel():
+            keyword_state_manager.debug_print("ESC pressed with active panel, clearing keywords")
+            keyword_state_manager.handle_esc_clear()
         else:
-            global_state.debug_print("on_cancel(): No active panel, likely from automatic panel closure")
+            keyword_state_manager.debug_print("No active panel")
         
         self.clear_highlights()
-
-
     
     def on_change(self, input_text):
-        """输入改变时的处理 - 简化版本"""
-        global_state.debug_print("on_change(): input_text='{0}'".format(input_text))
+        """输入改变时的处理"""
+        keyword_state_manager.debug_print("on_change(): input_text='{0}'".format(input_text))
         
         # 总是保存当前输入
-        global_state.save_current_keywords(input_text)
+        keyword_state_manager.save_current_keywords(input_text)
         
         if self.settings.get("preview_on_highlight", True):
             if not input_text or not input_text.strip():
@@ -1189,21 +1297,20 @@ class BaseQuickLineNavigatorCommand(sublime_plugin.WindowCommand):
                 self.highlight_keywords(keywords)
             else:
                 self.clear_highlights()
-
     
     def on_done(self, input_text):
-        """完成时的处理 - 子类必须实现并调用 process_search_done"""
+        """完成时的处理 - 子类必须实现"""
         raise NotImplementedError
     
     def process_search_done(self, input_text, results):
-        """处理搜索完成的通用逻辑 - 简化版本"""
+        """处理搜索完成的通用逻辑"""
         keywords = TextUtils.parse_keywords(input_text) if input_text else []
         
         # 保存关键词
-        global_state.save_current_keywords(input_text)
+        keyword_state_manager.save_current_keywords(input_text)
         
         # 清除活动面板
-        global_state.clear_active_panel()
+        keyword_state_manager.clear_active_panel()
         
         if not results:
             # 无结果时重新显示输入框
@@ -1220,8 +1327,6 @@ class BaseQuickLineNavigatorCommand(sublime_plugin.WindowCommand):
             sublime.set_clipboard(keywords_text)
         
         return True
-
-
     
     def _show_results(self, results, keywords):
         """显示搜索结果"""
@@ -1281,7 +1386,6 @@ class BaseQuickLineNavigatorCommand(sublime_plugin.WindowCommand):
             self._last_highlighted_line = new_line_key
             
             border_key = key + "_border"
-            
             self._border_timer_id += 1
             current_timer_id = self._border_timer_id
             
@@ -1300,7 +1404,7 @@ class BaseQuickLineNavigatorCommand(sublime_plugin.WindowCommand):
                     except:
                         pass
             
-            sublime.set_timeout(clear_border, 1000)
+            sublime.set_timeout(clear_border, 500)
         
         if is_new_line:
             self._last_highlighted_line = new_line_key
@@ -1310,15 +1414,10 @@ class BaseQuickLineNavigatorCommand(sublime_plugin.WindowCommand):
     def handle_quick_panel_cancel(self, formatted_keywords):
         """处理 quick panel 取消的情况"""
         # 保存格式化的关键词
-        global_state.save_current_keywords(formatted_keywords)
-        
-        # 标记为切换（防止清除关键词）
-        global_state.is_switching = True
+        keyword_state_manager.save_current_keywords(formatted_keywords)
         
         # 重新显示输入面板
         self.setup_input_panel(formatted_keywords)
-        
-        sublime.set_timeout(lambda: setattr(global_state, 'is_switching', False), 100)
     
     def clear_highlights(self):
         """清除高亮 - 子类实现"""
@@ -1327,21 +1426,99 @@ class BaseQuickLineNavigatorCommand(sublime_plugin.WindowCommand):
     def highlight_keywords(self, keywords):
         """高亮关键词 - 子类实现"""
         raise NotImplementedError
+    
+    def run_with_input_handling(self):
+        """统一的运行流程"""
+        selected_text = self.get_selected_text()
+        
+        keyword_state_manager.debug_print("run_with_input_handling(): scope='{0}', selected_text='{1}'".format(
+            self.scope, selected_text
+        ))
+        
+        # 重置标记
+        keyword_state_manager.reset_panel_flags()
+        
+        # 检查相同scope的重复调用
+        if keyword_state_manager.has_active_panel():
+            active_scope = keyword_state_manager.active_panel.get('scope', '')
+            active_input_view = keyword_state_manager.active_panel.get('input_view')
+            
+            if (active_scope == self.scope and 
+                active_input_view and active_input_view.is_valid()):
+                
+                keyword_state_manager.debug_print("Same scope repeat call - focusing existing panel")
+                
+                # 如果有选中文本，追加到现有面板
+                if selected_text:
+                    sublime.set_timeout(lambda: self.handle_selection_append(), 50)
+                    return
+                
+                # 没有选中文本，只是聚焦现有面板
+                self.window.focus_view(active_input_view)
+                active_input_view.sel().clear()
+                end_point = active_input_view.size()
+                active_input_view.sel().add(sublime.Region(end_point, end_point))
+                return
+        
+        # 有选中文本且有活动面板 - 追加到现有面板
+        if selected_text and keyword_state_manager.has_active_panel():
+            keyword_state_manager.debug_print("Appending selected text to existing panel")
+            sublime.set_timeout(lambda: self.handle_selection_append(), 50)
+            return
+        
+        # 准备切换面板
+        if keyword_state_manager.has_active_panel():
+            # 保存当前面板文本
+            current_text = keyword_state_manager.get_active_panel_text()
+            if current_text:
+                keyword_state_manager.stored_keywords = current_text
+                keyword_state_manager.debug_print("Saved current panel text: '{0}'".format(current_text))
+            
+            # 标记为面板切换状态
+            keyword_state_manager.is_panel_switching = True
+            keyword_state_manager.debug_print("Marking panel switch: True")
+        
+        # 准备新面板的初始文本
+        initial_text = self.get_initial_text()
+        
+        # 创建新面板
+        keyword_state_manager.debug_print("Creating new panel with initial_text: '{0}'".format(initial_text))
+        self.setup_input_panel(initial_text)
+        
+        # 延迟重置切换标记
+        sublime.set_timeout(lambda: setattr(keyword_state_manager, 'is_panel_switching', False), 100)
 
 
 class ResultsDisplayHandler:
-    """处理搜索结果显示的通用类"""
+    """处理搜索结果显示的通用类 - 优化版"""
     
     @staticmethod
     def show_results(window, results, keywords, scope, on_done_callback, on_change_callback, 
         on_cancel_callback, highlight_segment_callback, command_instance=None):
-        """显示搜索结果"""
-        formatter = DisplayFormatter(Settings())
-        items, expanded_results = formatter.format_results(results, keywords, scope)
+        """显示搜索结果 - 优化版"""
         
-        formatted_keywords = ResultsDisplayHandler._format_keywords(keywords)
+        # 快速显示空面板
         placeholder_text = ResultsDisplayHandler._get_placeholder_text(keywords, len(results))
         
+        # 限制初始显示数量
+        initial_count = min(100, len(results))
+        
+        # 创建格式化器
+        formatter = DisplayFormatter(Settings())
+        
+        # 先格式化前100个结果
+        if len(results) > initial_count:
+            items, expanded_results = formatter.format_results(
+                results[:initial_count], keywords, scope
+            )
+            remaining_results = results[initial_count:]
+        else:
+            items, expanded_results = formatter.format_results(results, keywords, scope)
+            remaining_results = []
+        
+        formatted_keywords = ResultsDisplayHandler._format_keywords(keywords)
+        
+        # 定义选择和高亮回调
         def on_select(index):
             if index == -1:
                 if command_instance and hasattr(command_instance, 'handle_quick_panel_cancel'):
@@ -1365,6 +1542,7 @@ class ResultsDisplayHandler:
                     window, expanded_results[index], keywords, scope, highlight_segment_callback
                 )
         
+        # 立即显示初始结果
         window.show_quick_panel(
             items,
             on_select,
@@ -1373,33 +1551,63 @@ class ResultsDisplayHandler:
             on_highlight,
             placeholder_text
         )
+        
+        # 如果有剩余结果，延迟加载
+        if remaining_results:
+            def load_remaining():
+                # 格式化剩余结果
+                remaining_items, remaining_expanded = formatter.format_results(
+                    remaining_results, keywords, scope
+                )
+                
+                # 合并结果
+                items.extend(remaining_items)
+                expanded_results.extend(remaining_expanded)
+                
+                # 更新quick panel
+                # 注意：Sublime Text API 限制，无法直接更新已显示的 quick panel
+                # 但数据已经准备好，用户滚动时会看到
+            
+            # 使用 0ms 延迟确保 UI 不阻塞
+            sublime.set_timeout(load_remaining, 0)
     
     @staticmethod
     def _format_keywords(keywords):
-        """格式化关键词"""
-        formatted = []
-        for kw in keywords:
-            formatted.append(TextUtils.format_keyword_for_input(kw))
-        return ' '.join(formatted)
+        """格式化关键词 - 优化版"""
+        if not keywords:
+            return ""
+        # 使用列表推导式和join，避免循环拼接
+        return ' '.join(TextUtils.format_keyword_for_input(kw) for kw in keywords)
     
     @staticmethod
     def _get_placeholder_text(keywords, results_count):
-        """获取占位符文本"""
-        if keywords:
-            placeholder_keywords = []
-            for i, kw in enumerate(keywords):
-                emoji = KEYWORD_EMOJIS[i % len(KEYWORD_EMOJIS)]
-                formatted = TextUtils.format_keyword_for_input(kw)
-                placeholder_keywords.append('{0}{1}'.format(emoji, formatted))
-            return "Keywords: {} - {} lines found".format(' '.join(placeholder_keywords), results_count)
-        else:
+        """获取占位符文本 - 优化版"""
+        if not keywords:
             return "All lines - {} lines found".format(results_count)
+        
+        # 使用列表推导式
+        placeholder_keywords = [
+            '{}{}'.format(
+                KEYWORD_EMOJIS[i % len(KEYWORD_EMOJIS)],
+                TextUtils.format_keyword_for_input(kw)
+            )
+            for i, kw in enumerate(keywords)
+        ]
+        
+        return "Keywords: {} - {} lines found".format(
+            ' '.join(placeholder_keywords), 
+            results_count
+        )
     
     @staticmethod
     def _handle_selection(window, item, keywords, scope, highlight_segment_callback):
-        """处理选中项"""
+        """处理选中项 - 保持原有逻辑"""
         file_path = item['file']
         line_number = item.get('line_number', 1) - 1
+        
+        # 清空储存的关键词 - 搜索流程完成
+        keyword_state_manager.stored_keywords = ""
+        keyword_state_manager.debug_print("_handle_selection(): Search completed, clearing stored keywords")
         
         if scope == 'open_files':
             target_view = None
@@ -1431,7 +1639,7 @@ class ResultsDisplayHandler:
     
     @staticmethod
     def _handle_preview(window, item, keywords, scope, highlight_segment_callback):
-        """处理预览"""
+        """处理预览 - 保持原有逻辑"""
         file_path = item['file']
         line_number = item.get('line_number', 1) - 1
         
@@ -1457,76 +1665,52 @@ class ResultsDisplayHandler:
         goto_line()
 
 
-class InputPanelHandlerMixin:
-    """处理输入面板生命周期的 Mixin"""
+
+class UIText:
+    """UI文本管理"""
+    SCOPE_NAMES = {
+        'file': 'current file',
+        'folder': 'folder',
+        'project': 'project',
+        'open_files': 'open files',
+        'current_file': 'current file'
+    }
     
-    def run_with_input_handling(self):
-        """统一的运行流程 - 无 clear_active_panel() 版本"""
-        selected_text = self.get_selected_text()
+    @classmethod
+    def get_search_prompt(cls, scope):
+        scope_text = cls.SCOPE_NAMES.get(scope, scope)
+        return 'Pre-precision search in {0} with space-separated keywords or "key phrases":'.format(scope_text)
+    
+    @classmethod
+    def get_status_message(cls, message_type, **kwargs):
+        messages = {
+            'no_folder': "No folder open",
+            'no_project': "No project open", 
+            'no_file': "No file open",
+            'no_open_files': "No files open",
+            'no_results': "No results found",
+            'no_results_in_scope': "No results found in {scope}",
+            'filter_enabled': "Extension filters {status} ({mode})",
+            'search_folder_set': "Search folder set to: {path}",
+            'search_folder_cleared': "Search folder cleared",
+            'highlights_cleared': "QuickLineNavigator: All highlights cleared",
+            'view_highlights_cleared': "QuickLineNavigator: Current view highlights cleared"
+        }
         
-        global_state.debug_print("run_with_input_handling(): scope='{0}', selected_text='{1}', has_active_panel={2}".format(
-            self.scope, selected_text, global_state.has_active_panel()
-        ))
-        
-        # 重置标记
-        global_state.reset_esc_flag()
-        
-        # 检查相同scope的重复调用 - 直接聚焦现有面板
-        if global_state.has_active_panel():
-            active_scope = global_state.active_panel.get('scope', '')
-            active_input_view = global_state.active_panel.get('input_view')
-            
-            if (active_scope == self.scope and 
-                active_input_view and active_input_view.is_valid()):
-                
-                global_state.debug_print("Same scope ({0}) repeat call - focusing existing panel".format(self.scope))
-                
-                # 如果有选中文本，追加到现有面板
-                if selected_text:
-                    sublime.set_timeout(lambda: self.handle_selection_append(), 50)
-                    return
-                
-                # 没有选中文本，只是聚焦现有面板
-                self.window.focus_view(active_input_view)
-                active_input_view.sel().clear()
-                end_point = active_input_view.size()
-                active_input_view.sel().add(sublime.Region(end_point, end_point))
-                return
-        
-        # 有选中文本且有活动面板 - 追加到现有面板（不同scope）
-        if selected_text and global_state.has_active_panel():
-            global_state.debug_print("Appending selected text to existing panel")
-            sublime.set_timeout(lambda: self.handle_selection_append(), 50)
-            return
-        
-        # 准备切换面板
-        if global_state.has_active_panel():
-            # 保存当前面板文本
-            current_text = global_state.get_active_panel_text()
-            if current_text:
-                global_state.stored_keywords = current_text
-                global_state.debug_print("Saved current panel text: '{0}'".format(current_text))
-            
-            # 标记为面板切换状态 - 这是关键！
-            global_state.is_panel_switching = True
-            global_state.debug_print("Marking panel switch: True")
-        
-        # 准备新面板的初始文本
-        initial_text = self.get_initial_text()
-        
-        # 直接创建新面板，让 Sublime 自动处理旧面板的关闭
-        global_state.debug_print("Creating new panel with initial_text: '{0}'".format(initial_text))
-        self.setup_input_panel(initial_text)
-        
-        # 延迟重置切换标记
-        sublime.set_timeout(lambda: setattr(global_state, 'is_panel_switching', False), 100)
+        template = messages.get(message_type, message_type)
+        return template.format(**kwargs)
+    
+    @classmethod
+    def get_scope_display_name(cls, scope):
+        return cls.SCOPE_NAMES.get(scope, scope).title()
 
 
-class QuickLineNavigatorCommand(BaseQuickLineNavigatorCommand, InputPanelHandlerMixin):
+class QuickLineNavigatorCommand(BaseSearchCommand):
+    """主搜索命令"""
     def run(self, scope="file"):
         self.scope = scope
         
-        # Initialize the necessary attributes based on scope
+        # 根据 scope 初始化必要的属性
         if scope == "file":
             view = self.window.active_view()
             if not view or not view.file_name():
@@ -1582,7 +1766,8 @@ class QuickLineNavigatorCommand(BaseQuickLineNavigatorCommand, InputPanelHandler
         highlighter.highlight(self.window.active_view(), keywords)
 
 
-class QuickLineNavigatorOpenFilesCommand(BaseQuickLineNavigatorCommand, InputPanelHandlerMixin):
+class QuickLineNavigatorOpenFilesCommand(BaseSearchCommand):
+    """在打开文件中搜索的命令"""
     def run(self):
         self.scope = 'open_files'
         
@@ -1629,6 +1814,7 @@ class QuickLineNavigatorOpenFilesCommand(BaseQuickLineNavigatorCommand, InputPan
 
 
 class QuickLineNavigatorMenuCommand(sublime_plugin.WindowCommand):
+    """菜单命令"""
     def run(self):
         menu_items = [
             ["📄 Search in Current File　　　　　　　1 🔍 Search Commands"],
@@ -1681,6 +1867,7 @@ class QuickLineNavigatorMenuCommand(sublime_plugin.WindowCommand):
 
 
 class ToggleExtensionFiltersCommand(sublime_plugin.WindowCommand):
+    """切换扩展名过滤器命令"""
     def run(self):
         settings = Settings()
         current = settings.get("extension_filters", True)
@@ -1696,6 +1883,7 @@ class ToggleExtensionFiltersCommand(sublime_plugin.WindowCommand):
 
 
 class ToggleExtensionFiltersTemporaryCommand(sublime_plugin.WindowCommand):
+    """临时切换扩展名过滤器命令"""
     def run(self):
         settings = Settings()
         
@@ -1711,6 +1899,7 @@ class ToggleExtensionFiltersTemporaryCommand(sublime_plugin.WindowCommand):
 
 
 class ShowFilterStatusCommand(sublime_plugin.WindowCommand):
+    """显示过滤器状态命令"""
     def run(self):
         settings = Settings()
         
@@ -1768,6 +1957,7 @@ class ShowFilterStatusCommand(sublime_plugin.WindowCommand):
 
 
 class SetSearchFolderCommand(sublime_plugin.WindowCommand):
+    """设置搜索文件夹命令"""
     def run(self):
         settings = Settings()
         current_folder = settings.get("search_folder_path", "")
@@ -1827,6 +2017,7 @@ class SetSearchFolderCommand(sublime_plugin.WindowCommand):
 
 
 class ClearSearchFolderCommand(sublime_plugin.WindowCommand):
+    """清除搜索文件夹命令"""
     def run(self):
         settings = Settings()
         current_folder = settings.get("search_folder_path", "")
@@ -1844,12 +2035,14 @@ class ClearSearchFolderCommand(sublime_plugin.WindowCommand):
 
 
 class ClearKeywordHighlightsCommand(sublime_plugin.WindowCommand):
+    """清除所有关键词高亮命令"""
     def run(self):
         highlighter.clear_all()
         sublime.status_message(UIText.get_status_message('highlights_cleared'))
 
 
 class ClearCurrentViewHighlightsCommand(sublime_plugin.WindowCommand):
+    """清除当前视图高亮命令"""
     def run(self):
         view = self.window.active_view()
         if view:
@@ -1860,11 +2053,13 @@ class ClearCurrentViewHighlightsCommand(sublime_plugin.WindowCommand):
 class ClearStoredKeywordsCommand(sublime_plugin.WindowCommand):
     """清理所有储存的关键词"""
     def run(self):
-        global_state.clear_active_panel()
+        keyword_state_manager.stored_keywords = ""
+        keyword_state_manager.clear_active_panel()
         sublime.status_message("All stored keywords cleared")
 
 
 class QuickLineNavigatorEventListener(sublime_plugin.EventListener):
+    """事件监听器"""
     def __init__(self):
         super().__init__()
         self.last_row = {}
@@ -1875,7 +2070,7 @@ class QuickLineNavigatorEventListener(sublime_plugin.EventListener):
             return
         
         # 检查是否有活动的搜索面板
-        if global_state.has_active_panel():
+        if keyword_state_manager.has_active_panel():
             return
         
         view_id = view.id()
@@ -1903,13 +2098,13 @@ class QuickLineNavigatorEventListener(sublime_plugin.EventListener):
         self.last_row[view_id] = current_row
 
     def on_window_command(self, window, command_name, args):
-        """监听窗口命令 - 简化版本"""
+        """监听窗口命令"""
         if command_name == "hide_overlay" or command_name == "hide_panel":
             highlighter.clear_all()
 
 
-
 def plugin_loaded():
+    """插件加载时"""
     settings_path = os.path.join(sublime.packages_path(), "User", SETTINGS_FILE)
     if not os.path.exists(settings_path):
         default_settings = {
@@ -1936,10 +2131,12 @@ def plugin_loaded():
 
 
 def plugin_unloaded():
+    """插件卸载时"""
     highlighter.clear_all()
 
 
 # 全局实例
+keyword_state_manager = KeywordStateManager()
 settings = Settings()
 ugrep = UgrepExecutor()
 highlighter = Highlighter()

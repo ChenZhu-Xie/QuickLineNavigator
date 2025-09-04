@@ -11,7 +11,6 @@ import platform
 import unicodedata
 from collections import defaultdict
 
-# 常量定义
 SETTINGS_FILE = "QuickLineNavigator.sublime-settings"
 SUPPORTED_ENCODINGS = ['utf-8', 'gbk', 'gb2312', 'utf-16', 'latin1', 'cp1252', 'shift_jis']
 DEFAULT_BLACKLIST = ['.exe', '.dll', '.so', '.dylib', '.a', '.lib', '.obj', '.o', '.bin',
@@ -49,7 +48,7 @@ class KeywordStateManager:
     def has_active_panel(self):
         """检查是否有活动的输入面板"""
         result = self.active_panel is not None
-        self.debug_print("has_active_panel() -> {0}".format(result))
+        # self.debug_print("has_active_panel() -> {0}".format(result))
         return result
     
     def get_active_panel_text(self):
@@ -84,14 +83,12 @@ class KeywordStateManager:
     
     def get_initial_text_for_new_panel(self, selected_text=""):
         """为新面板获取初始文本"""
-        # 有选中文本时，优先使用选中文本
         if selected_text:
             formatted = TextUtils.format_keyword_for_input(selected_text)
             result = self._ensure_trailing_space(formatted)
             self.debug_print("Using selected text: '{0}'".format(result))
             return result
         
-        # 使用存储的关键词
         result = self._ensure_trailing_space(self.stored_keywords)
         self.debug_print("Using stored keywords: '{0}'".format(result))
         return result
@@ -110,12 +107,10 @@ class KeywordStateManager:
         formatted_selected = TextUtils.format_keyword_for_input(selected_text)
         current_keywords = TextUtils.parse_keywords(current_text)
         
-        # 检查是否已存在
         if formatted_selected in current_keywords or selected_text in current_keywords:
             self.debug_print("Keyword already exists, not appending")
             return current_text
         
-        # 构建新文本
         if current_text and not current_text.endswith(' '):
             new_text = "{0} {1}".format(current_text, formatted_selected)
         else:
@@ -210,7 +205,6 @@ class FileFilter:
         basename = os.path.basename(filename)
         _, ext = os.path.splitext(filename.lower())
         
-        # 总是排除的文件
         if ext in {'.git', '.svn', '.hg', '.sublime-workspace', '.sublime-project'} or basename.startswith('.'):
             return False
         
@@ -220,13 +214,11 @@ class FileFilter:
         if not self.enabled:
             return True
         
-        # 检查黑名单
         if self.blacklist:
             blacklist_set = {('.' + e.lstrip('.').lower() if e and e != '.' else e) for e in self.blacklist}
             if ext in blacklist_set:
                 return False
         
-        # 检查白名单
         if not self.whitelist:
             return True
         
@@ -261,7 +253,6 @@ class TextUtils:
         if not s:
             return 0
         
-        # 处理单个字符的快速路径
         if len(s) == 1:
             ch = s[0]
             if ord(ch) < 128:
@@ -281,11 +272,9 @@ class TextUtils:
                 ea_width = unicodedata.east_asian_width(ch)
                 return 2 if ea_width in ('F', 'W', 'A') else 1
         
-        # 快速路径：纯ASCII字符串
         if all(ord(c) < 128 for c in s):
             return len(s)
         
-        # 完整字符串处理
         width = 0
         for ch in s:
             if ('\U0001F300' <= ch <= '\U0001F9FF' or
@@ -348,7 +337,6 @@ class TextUtils:
         if current.strip():
             keywords.append(current.strip())
         
-        # 处理多行关键词
         final_keywords = []
         for kw in keywords:
             if kw and ('\r' in kw or '\n' in kw):
@@ -815,32 +803,26 @@ class Highlighter:
 class DisplayFormatter:
     """显示格式化器 - 超级优化版"""
     
-    # 定义更全面的断点字符
     BREAK_CHARS = {
-        # 英文标点
         ' ', ',', '.', ';', ':', '!', '?', '-', '_', '/', '\\', '|', 
         '(', ')', '[', ']', '{', '}', '<', '>', '"', "'", '`', '~',
         '@', '#', '$', '%', '^', '&', '*', '+', '=',
-        # 中文标点
         '，', '。', '；', '：', '！', '？', '、', '—', '…', 
         '（', '）', '【', '】', '｛', '｝', '《', '》', '「', '」', '『', '』',
         '"', '"', ''', ''', '·', '～', '－', '＿', '／', '＼', '｜',
         '＋', '＝', '＊', '＆', '％', '＄', '＃', '＠',
-        # 其他常见符号
-        '　',  # 全角空格
+        '　',  
     }
     
     def __init__(self, settings):
         self.settings = settings
         self.show_line_numbers = settings.get("show_line_numbers", True)
         self.max_length = settings.get("max_display_length", 120)
-        # 增强缓存
         self._width_cache = {}
         self._emoji_cache = {}
         self._format_cache = {}
         self._segment_cache = {}
         self._keyword_patterns = {}
-        # 进度追踪
         self.total_to_format = 0
         self.current_formatted = 0
     
@@ -849,22 +831,17 @@ class DisplayFormatter:
         if not results:
             return [], []
             
-        # 预编译关键词正则
         self._prepare_keyword_patterns(keywords)
         
-        # 清理旧缓存（保持缓存大小合理）
         if len(self._format_cache) > 5000:
             self.clear_caches()
         
         formatted = []
         expanded_results = []
         
-        # 预计算关键词信息
         keyword_info = self._prepare_keyword_info(keywords)
         
-        # 批量处理
         for i, item in enumerate(results):
-            # 使用更快的缓存键
             cache_key = (
                 item.get('file', ''), 
                 item.get('line_number', -1),
@@ -877,11 +854,9 @@ class DisplayFormatter:
                 expanded_results.extend(cached['expanded'])
                 continue
             
-            # 快速格式化
             fmt_items, exp_items = self._format_single_fast(item, i, keyword_info, scope)
             
-            # 缓存
-            if len(self._format_cache) < 5000:  # 限制缓存大小
+            if len(self._format_cache) < 5000:  
                 self._format_cache[cache_key] = {
                     'formatted': fmt_items,
                     'expanded': exp_items
@@ -929,23 +904,18 @@ class DisplayFormatter:
         formatted_items = []
         expanded_items = []
         
-        # 检查添加emoji后的完整行宽度
         line_with_emojis = self._apply_emoji_highlights_fast(line_stripped, keyword_info)
         line_width = self._get_cached_width(line_with_emojis)
         
-        # 如果整行能放下，就不分段
         if line_width <= self.max_length:
-            # 不分段，使用完整的行
             sub_line = self._format_sub_line_simple(item, index, scope)
             formatted_items.append([line_with_emojis, sub_line])
             
-            # 标记为单段
             expanded_item = item.copy()
             expanded_item['strip_offset'] = strip_offset
-            expanded_item['is_single_segment'] = True  # 关键标记
+            expanded_item['is_single_segment'] = True  
             expanded_items.append(expanded_item)
         else:
-            # 需要分段
             segments = self._smart_split_original(line_stripped, keyword_info)
             
             for seg_index, (seg_start, seg_end) in enumerate(segments):
@@ -964,7 +934,7 @@ class DisplayFormatter:
                     'segment_index': seg_index,
                     'total_segments': len(segments),
                     'strip_offset': strip_offset,
-                    'is_single_segment': False  # 标记为多段
+                    'is_single_segment': False  
                 })
                 expanded_items.append(expanded_item)
         
@@ -989,137 +959,152 @@ class DisplayFormatter:
         if not text:
             return []
         
-        # 预估每个关键词加上emoji后的额外宽度
-        emoji_overhead = 0
+        emoji_overhead_per_char = 0
         if keyword_info['keywords']:
+            total_keyword_length = 0
+            total_keyword_count = 0
             for kw in keyword_info['keywords']:
-                # 统计关键词出现次数（不区分大小写）
                 count = len(re.findall(re.escape(kw), text, re.IGNORECASE))
-                emoji_overhead += count * 2  # 每个emoji占2个宽度
+                total_keyword_count += count
+                total_keyword_length += count * len(kw)
+            
+            if total_keyword_length > 0:
+                emoji_overhead_per_char = (total_keyword_count * 2) / len(text)
         
-        # 首先检查：整行加上emoji是否能放下
         text_width = self._get_cached_width(text)
-        if text_width + emoji_overhead <= self.max_length:
-            # 整行可以放下，不需要分段
-            return [(0, len(text))]
+        estimated_total_width = text_width + (total_keyword_count * 2 if keyword_info['keywords'] else 0)
         
-        # 计算实际可用的最大长度（考虑emoji开销）
-        # 使用更保守的估算，确保每段都能放下
-        effective_max_length = self.max_length - emoji_overhead - 10  # 额外预留10个字符
-        # 但要确保有合理的最小值
-        effective_max_length = max(30, effective_max_length)
+        if estimated_total_width <= self.max_length:
+            return [(0, len(text))]
         
         segments = []
         start = 0
         text_len = len(text)
         
         while start < text_len:
-            # 尽可能取最长的段
-            end = start
-            current_width = 0
             
-            # 首先，尽可能多地包含字符，直到达到有效最大长度
-            while end < text_len:
-                char = text[end]
-                char_width = TextUtils.display_width(char)
+            left = start + 1  
+            right = text_len
+            best_end = start + 1
+            
+            while left <= right:
+                mid = (left + right) // 2
+                segment_text = text[start:mid]
                 
-                # 检查加上这个字符后是否超过限制
-                if current_width + char_width > effective_max_length:
-                    break
+                segment_width = self._get_cached_width(segment_text)
                 
-                current_width += char_width
-                end += 1
+                segment_emoji_overhead = 0
+                for kw in keyword_info['keywords']:
+                    count = len(re.findall(re.escape(kw), segment_text, re.IGNORECASE))
+                    segment_emoji_overhead += count * 2
+                
+                total_width = segment_width + segment_emoji_overhead
+                
+                if total_width <= self.max_length:
+                    best_end = mid
+                    left = mid + 1
+                else:
+                    right = mid - 1
             
-            # 如果这是第一个字符，至少要包含它（避免死循环）
-            if end == start and start < text_len:
-                end = start + 1
             
-            # 如果已经到达文本末尾，直接添加剩余部分
-            if end >= text_len:
+            if best_end >= text_len:
                 segments.append((start, text_len))
                 break
             
-            # 寻找最佳断点
-            best_break = self._find_best_break_point_original(text, start, end)
+            actual_end = self._find_best_break_forward(text, start, best_end, keyword_info)
             
-            # 确保断点有效
-            if best_break > start:
-                end = best_break
+            if actual_end > best_end:
+                test_segment = text[start:actual_end]
+                test_width = self._get_cached_width(test_segment)
+                test_emoji_overhead = 0
+                for kw in keyword_info['keywords']:
+                    count = len(re.findall(re.escape(kw), test_segment, re.IGNORECASE))
+                    test_emoji_overhead += count * 2
+                
+                if test_width + test_emoji_overhead > self.max_length:
+                    actual_end = self._find_best_break_backward(text, start, best_end)
             
-            # 添加当前段
-            segments.append((start, end))
+            if actual_end <= start:
+                actual_end = min(start + 1, text_len)
             
-            # 移到下一段开始（不跳过任何字符）
-            start = end
+            segments.append((start, actual_end))
+            start = actual_end
         
         return segments
-    
-    def _find_best_break_point_original(self, text, start, end):
-        """在原始文本中寻找最佳断点位置 - 修复版"""
-        # 如果范围太小，直接返回end
-        if end - start <= 10:
-            return end
+
+    def _find_best_break_forward(self, text, start, from_pos, keyword_info):
+        """从指定位置向后寻找最佳断点"""
+        text_len = len(text)
         
-        # 定义搜索范围（不要搜索太远）
-        search_start = max(start, end - min(30, (end - start) // 2))
+        search_end = min(from_pos + 20, text_len)
         
-        # 修复：我们要找的是断点字符的位置，然后返回其后一个位置
-        # 这样断点字符会被包含在当前段中
+        if from_pos >= text_len:
+            return text_len
         
-        # 1. 句子结束标记（最高优先级）
-        for pos in range(end - 1, search_start, -1):
+        for pos in range(from_pos, search_end):
+            if pos < text_len and text[pos] in '。！？；.!?;':
+                return pos + 1
+        
+        for pos in range(from_pos, search_end):
+            if pos < text_len and text[pos] in '，、,':
+                return pos + 1
+        
+        for pos in range(from_pos, search_end):
+            if pos < text_len and text[pos] in ' \t':
+                if not self._is_in_word(text, pos):
+                    return pos + 1
+        
+        for pos in range(from_pos, search_end):
+            if pos < text_len and text[pos] in self.BREAK_CHARS:
+                if not self._is_in_word(text, pos):
+                    return pos + 1
+        
+        return from_pos
+
+    def _find_best_break_backward(self, text, start, from_pos):
+        """从指定位置向前寻找最佳断点"""
+        search_start = max(start + 10, from_pos - 30)
+        
+        for pos in range(from_pos - 1, search_start - 1, -1):
             if text[pos] in '。！？；.!?;':
-                # 包含标点符号在当前段
-                return min(pos + 1, end)
+                return pos + 1
         
-        # 2. 逗号等次要断点
-        for pos in range(end - 1, search_start, -1):
+        for pos in range(from_pos - 1, search_start - 1, -1):
             if text[pos] in '，、,':
-                # 包含逗号在当前段
-                return min(pos + 1, end)
+                return pos + 1
         
-        # 3. 空格（但要避免在单词中间断开）
-        for pos in range(end - 1, search_start, -1):
+        for pos in range(from_pos - 1, search_start - 1, -1):
             if text[pos] in ' \t':
-                # 检查是否在单词中间
-                if pos > start and pos < len(text) - 1:
-                    prev_char = text[pos-1] if pos > 0 else ''
-                    next_char = text[pos+1] if pos < len(text) - 1 else ''
-                    # 如果前后都是字母数字，说明在单词中间，跳过
-                    if prev_char.isalnum() and next_char.isalnum():
-                        continue
-                # 空格包含在当前段
-                return min(pos + 1, end)
+                if not self._is_in_word(text, pos):
+                    return pos + 1
         
-        # 4. 括号等符号之后
-        for pos in range(end - 1, search_start, -1):
+        for pos in range(from_pos - 1, search_start - 1, -1):
             if text[pos] in ')]}）】｝》」』"\'`':
-                # 包含符号在当前段
-                return min(pos + 1, end)
+                return pos + 1
         
-        # 5. 其他断点字符
-        for pos in range(end - 1, search_start, -1):
+        for pos in range(from_pos - 1, search_start - 1, -1):
             if text[pos] in self.BREAK_CHARS:
-                # 避免在单词或数字中间断开
-                if pos > 0 and pos < len(text) - 1:
-                    prev_char = text[pos-1]
-                    next_char = text[pos+1]
-                    if prev_char.isalnum() and next_char.isalnum():
-                        continue
-                # 包含断点字符在当前段
-                return min(pos + 1, end)
+                if not self._is_in_word(text, pos):
+                    return pos + 1
         
-        # 6. CJK字符边界（中文、日文、韩文之间的边界）
-        for pos in range(end - 1, search_start, -1):
+        for pos in range(from_pos - 1, search_start - 1, -1):
             if pos < len(text) - 1:
                 curr_is_cjk = self._is_cjk_char(text[pos])
                 next_is_cjk = self._is_cjk_char(text[pos + 1])
-                # 在CJK和非CJK字符之间断开
                 if curr_is_cjk != next_is_cjk:
-                    return min(pos + 1, end)
+                    return pos + 1
         
-        # 如果找不到好的断点，返回原始end
-        return end
+        return from_pos
+
+    def _is_in_word(self, text, pos):
+        """检查给定位置是否在单词中间"""
+        if pos <= 0 or pos >= len(text) - 1:
+            return False
+        
+        prev_char = text[pos - 1]
+        next_char = text[pos + 1]
+        
+        return prev_char.isalnum() and next_char.isalnum()
     
     def _get_cached_width(self, text):
         """获取缓存的宽度"""
@@ -1127,7 +1112,7 @@ class DisplayFormatter:
             return self._width_cache[text]
         
         width = TextUtils.display_width(text)
-        if len(self._width_cache) < 5000:  # 限制缓存大小
+        if len(self._width_cache) < 5000:  
             self._width_cache[text] = width
         return width
     
@@ -1139,11 +1124,11 @@ class DisplayFormatter:
         """判断是否是CJK字符（中日韩文字）"""
         code_point = ord(char)
         return (
-            0x4E00 <= code_point <= 0x9FFF or  # CJK Unified Ideographs
-            0x3400 <= code_point <= 0x4DBF or  # CJK Extension A  
-            0x3040 <= code_point <= 0x309F or  # Hiragana
-            0x30A0 <= code_point <= 0x30FF or  # Katakana
-            0xAC00 <= code_point <= 0xD7AF     # Hangul Syllables
+            0x4E00 <= code_point <= 0x9FFF or  
+            0x3400 <= code_point <= 0x4DBF or  
+            0x3040 <= code_point <= 0x309F or  
+            0x30A0 <= code_point <= 0x30FF or  
+            0xAC00 <= code_point <= 0xD7AF     
         )
     
     def _format_sub_line_simple(self, item, index, scope, segment_index=0, total_segments=1):
@@ -1188,7 +1173,6 @@ class BaseSearchCommand(sublime_plugin.WindowCommand):
         self.original_keywords = ""
         self.scope = None
         self._border_timer_id = 0
-        # 添加预览缓存
         self._preview_cache = {}
         self._pending_highlight = None
         self._line_cache = {}
@@ -1213,7 +1197,6 @@ class BaseSearchCommand(sublime_plugin.WindowCommand):
             self.scope, initial_text
         ))
         
-        # 创建输入面板
         self.input_view = self.window.show_input_panel(
             UIText.get_search_prompt(self.scope),
             initial_text,
@@ -1222,14 +1205,12 @@ class BaseSearchCommand(sublime_plugin.WindowCommand):
             self.on_cancel
         )
         
-        # 设置活动面板信息
         keyword_state_manager.set_active_panel({
             'scope': self.scope,
             'input_view': self.input_view,
             'command_instance': self
         })
         
-        # 将光标移到末尾
         if self.input_view:
             self.input_view.sel().clear()
             end_point = self.input_view.size()
@@ -1250,16 +1231,13 @@ class BaseSearchCommand(sublime_plugin.WindowCommand):
         current_text = keyword_state_manager.get_active_panel_text()
         new_text = keyword_state_manager.handle_panel_append_selection(selected_text, current_text)
         
-        # 更新输入框
         self.input_view.run_command("select_all")
         self.input_view.run_command("insert", {"characters": new_text})
         
-        # 将光标移到末尾
         self.input_view.sel().clear()
         end_point = self.input_view.size()
         self.input_view.sel().add(sublime.Region(end_point, end_point))
         
-        # 确保输入框获得焦点
         self.window.focus_view(self.input_view)
         keyword_state_manager.debug_print("Focus set to input panel")
     
@@ -1269,13 +1247,11 @@ class BaseSearchCommand(sublime_plugin.WindowCommand):
             keyword_state_manager.is_panel_switching
         ))
         
-        # 如果是面板切换导致的取消，不清空关键词
         if keyword_state_manager.is_panel_switching:
             keyword_state_manager.debug_print("Panel switching detected, not clearing keywords")
             self.clear_highlights()
             return
         
-        # 只有当前确实有活动面板时才清空关键词（真正的 ESC）
         if keyword_state_manager.has_active_panel():
             keyword_state_manager.debug_print("ESC pressed with active panel, clearing keywords")
             keyword_state_manager.handle_esc_clear()
@@ -1288,7 +1264,6 @@ class BaseSearchCommand(sublime_plugin.WindowCommand):
         """输入改变时的处理"""
         keyword_state_manager.debug_print("on_change(): input_text='{0}'".format(input_text))
         
-        # 总是保存当前输入
         keyword_state_manager.save_current_keywords(input_text)
         
         if self.settings.get("preview_on_highlight", True):
@@ -1310,19 +1285,15 @@ class BaseSearchCommand(sublime_plugin.WindowCommand):
         """处理搜索完成的通用逻辑"""
         keywords = TextUtils.parse_keywords(input_text) if input_text else []
         
-        # 保存关键词
         keyword_state_manager.save_current_keywords(input_text)
         
-        # 清除活动面板
         keyword_state_manager.clear_active_panel()
         
         if not results:
-            # 无结果时重新显示输入框
             sublime.status_message(UIText.get_status_message('no_results_in_scope', scope=self.scope))
             self.setup_input_panel(input_text)
             return False
         
-        # 有结果时复制关键词到剪贴板
         if keywords:
             formatted_keywords = []
             for kw in keywords:
@@ -1346,7 +1317,6 @@ class BaseSearchCommand(sublime_plugin.WindowCommand):
         if 'segment_start' not in item or 'segment_end' not in item:
             return
         
-        # 取消待处理的高亮
         if self._pending_highlight:
             self._pending_highlight = None
         
@@ -1359,11 +1329,9 @@ class BaseSearchCommand(sublime_plugin.WindowCommand):
         
         is_new_line = self._last_highlighted_line != new_line_key
         
-        # 清除之前的高亮（同步执行）
         if self.current_segment_key and self.highlighted_view_id:
             self._clear_previous_highlights(is_new_line)
         
-        # 执行新的高亮（同步执行）
         self._apply_new_highlight(view, item, line_number, is_new_line)
         
         if is_new_line:
@@ -1381,7 +1349,6 @@ class BaseSearchCommand(sublime_plugin.WindowCommand):
     
     def _apply_new_highlight(self, view, item, line_number, show_border):
         """应用新的高亮 - 重构版"""
-        # 缓存行信息以避免重复计算
         cache_key = (view.id(), line_number)
         
         if cache_key in self._line_cache:
@@ -1392,21 +1359,16 @@ class BaseSearchCommand(sublime_plugin.WindowCommand):
             line_start = line_region.begin()
             self._line_cache[cache_key] = (line_region, line_text, line_start)
             
-            # 限制缓存大小
             if len(self._line_cache) > 100:
                 keys_to_remove = list(self._line_cache.keys())[:50]
                 for key in keys_to_remove:
                     del self._line_cache[key]
         
-        # 获取strip偏移量
         strip_offset = item.get('strip_offset', 0)
         
-        # 判断是否是单段（不分段）
         is_single_segment = item.get('is_single_segment', False)
         
-        # 计算高亮区域
         if is_single_segment:
-            # 单段：高亮整个stripped行
             line_stripped = line_text.strip()
             if line_stripped:
                 stripped_start = line_text.find(line_stripped)
@@ -1419,7 +1381,6 @@ class BaseSearchCommand(sublime_plugin.WindowCommand):
             else:
                 return
         else:
-            # 多段：使用segment信息
             if 'segment_start' in item and 'segment_end' in item:
                 segment_start = line_start + strip_offset + item['segment_start']
                 segment_end = line_start + strip_offset + item['segment_end']
@@ -1428,18 +1389,15 @@ class BaseSearchCommand(sublime_plugin.WindowCommand):
         
         segment_region = sublime.Region(segment_start, segment_end)
         
-        # 设置高亮键
         key = "QuickLineNavSegment_{0}".format(view.id())
         self.current_segment_key = key
         self.highlighted_view_id = view.id()
         
-        # 1. 先处理边框（如果需要）
         if not is_single_segment and show_border:
             total_segments = item.get('total_segments', 1)
             if total_segments > 1:
                 self._show_temporary_border(view, line_region, key)
         
-        # 2. 然后应用白色下划线（会覆盖在边框之上）
         view.add_regions(
             key,
             [segment_region],
@@ -1448,7 +1406,6 @@ class BaseSearchCommand(sublime_plugin.WindowCommand):
             sublime.DRAW_NO_FILL | sublime.DRAW_NO_OUTLINE | sublime.DRAW_SOLID_UNDERLINE
         )
         
-        # 确保段落可见
         view.show(segment_region, True)
 
     def _show_temporary_border(self, view, line_region, base_key):
@@ -1458,7 +1415,6 @@ class BaseSearchCommand(sublime_plugin.WindowCommand):
         
         border_key = base_key + "_border"
         
-        # 立即添加边框
         view.add_regions(
             border_key,
             [line_region],
@@ -1467,7 +1423,6 @@ class BaseSearchCommand(sublime_plugin.WindowCommand):
             sublime.DRAW_NO_FILL | sublime.DRAW_EMPTY
         )
         
-        # 延迟清除边框
         def clear_border():
             if current_timer_id == self._border_timer_id and view and view.is_valid():
                 try:
@@ -1482,7 +1437,6 @@ class BaseSearchCommand(sublime_plugin.WindowCommand):
         if not view or not view.is_valid():
             return
         
-        # 检查是否是新行
         current_file = item.get('file', '')
         current_line_number = item.get('line_number', -1)
         new_line_key = (current_file, current_line_number)
@@ -1492,11 +1446,9 @@ class BaseSearchCommand(sublime_plugin.WindowCommand):
         
         is_new_line = self._last_highlighted_line != new_line_key
         
-        # 清除之前的高亮
         if self.current_segment_key and self.highlighted_view_id:
             self._clear_previous_highlights(is_new_line)
         
-        # 应用新的高亮
         self._apply_new_highlight(view, item, line_number, is_new_line)
         
         if is_new_line:
@@ -1507,7 +1459,6 @@ class BaseSearchCommand(sublime_plugin.WindowCommand):
         if not self.highlighted_view_id:
             return
             
-        # 查找包含高亮的视图
         for window in sublime.windows():
             for v in window.views():
                 if v.id() == self.highlighted_view_id:
@@ -1526,10 +1477,8 @@ class BaseSearchCommand(sublime_plugin.WindowCommand):
     
     def handle_quick_panel_cancel(self, formatted_keywords):
         """处理 quick panel 取消的情况"""
-        # 保存格式化的关键词
         keyword_state_manager.save_current_keywords(formatted_keywords)
         
-        # 重新显示输入面板
         self.setup_input_panel(formatted_keywords)
     
     def clear_highlights(self):
@@ -1548,10 +1497,8 @@ class BaseSearchCommand(sublime_plugin.WindowCommand):
             self.scope, selected_text
         ))
         
-        # 重置标记
         keyword_state_manager.reset_panel_flags()
         
-        # 检查相同scope的重复调用
         if keyword_state_manager.has_active_panel():
             active_scope = keyword_state_manager.active_panel.get('scope', '')
             active_input_view = keyword_state_manager.active_panel.get('input_view')
@@ -1561,44 +1508,35 @@ class BaseSearchCommand(sublime_plugin.WindowCommand):
                 
                 keyword_state_manager.debug_print("Same scope repeat call - focusing existing panel")
                 
-                # 如果有选中文本，追加到现有面板
                 if selected_text:
                     sublime.set_timeout(lambda: self.handle_selection_append(), 50)
                     return
                 
-                # 没有选中文本，只是聚焦现有面板
                 self.window.focus_view(active_input_view)
                 active_input_view.sel().clear()
                 end_point = active_input_view.size()
                 active_input_view.sel().add(sublime.Region(end_point, end_point))
                 return
         
-        # 有选中文本且有活动面板 - 追加到现有面板
         if selected_text and keyword_state_manager.has_active_panel():
             keyword_state_manager.debug_print("Appending selected text to existing panel")
             sublime.set_timeout(lambda: self.handle_selection_append(), 50)
             return
         
-        # 准备切换面板
         if keyword_state_manager.has_active_panel():
-            # 保存当前面板文本
             current_text = keyword_state_manager.get_active_panel_text()
             if current_text:
                 keyword_state_manager.stored_keywords = current_text
                 keyword_state_manager.debug_print("Saved current panel text: '{0}'".format(current_text))
             
-            # 标记为面板切换状态
             keyword_state_manager.is_panel_switching = True
             keyword_state_manager.debug_print("Marking panel switch: True")
         
-        # 准备新面板的初始文本
         initial_text = self.get_initial_text()
         
-        # 创建新面板
         keyword_state_manager.debug_print("Creating new panel with initial_text: '{0}'".format(initial_text))
         self.setup_input_panel(initial_text)
         
-        # 延迟重置切换标记
         sublime.set_timeout(lambda: setattr(keyword_state_manager, 'is_panel_switching', False), 100)
 
 
@@ -1616,7 +1554,6 @@ class ResultsDisplayHandler:
         
         total_results = len(results)
         
-        # 准备进度跟踪
         progress_lock = threading.Lock()
         progress_data = {
             'current': 0,
@@ -1627,7 +1564,6 @@ class ResultsDisplayHandler:
             'last_percent': -1
         }
         
-        # 结果容器
         all_items = []
         all_expanded = []
         
@@ -1642,7 +1578,6 @@ class ResultsDisplayHandler:
                 if current is not None:
                     progress_data['current'] = current
                 
-                # 限制更新频率，避免过度刷新
                 if not force and current_time - progress_data['last_update_time'] < 0.05:
                     return
                 
@@ -1654,18 +1589,15 @@ class ResultsDisplayHandler:
                 if total > 0:
                     percent = int((current_count / total) * 100)
                     
-                    # 只在百分比变化时更新
                     if not force and percent == progress_data['last_percent']:
                         return
                     
                     progress_data['last_percent'] = percent
                     
-                    # 生成进度条
-                    filled = int(percent / 5)  # 20个格子
+                    filled = int(percent / 5)  
                     empty = 20 - filled
                     progress_bar = "{}{}".format("▓" * filled, "░" * empty)
                     
-                    # 计算剩余时间
                     elapsed = current_time - progress_data['start_time']
                     if elapsed > 0 and current_count > 0:
                         rate = current_count / elapsed
@@ -1681,12 +1613,10 @@ class ResultsDisplayHandler:
                     else:
                         eta_str = ""
                     
-                    # 格式化状态文本
                     status_text = "Formatting: [{}] {}% ({}/{}){}".format(
                         progress_bar, percent, current_count, total, eta_str
                     )
                     
-                    # 在主线程更新状态
                     sublime.set_timeout(lambda: sublime.status_message(status_text), 0)
         
         def format_batch(batch_items, formatter):
@@ -1698,17 +1628,14 @@ class ResultsDisplayHandler:
                     break
                 
                 try:
-                    # 调用原有的格式化逻辑
                     formatted, expanded = formatter.format_results(
                         [result], keywords, scope
                     )
                     
-                    # 保存索引以便后续排序
                     batch_results.append((index, formatted, expanded))
                     
                 except Exception as e:
                     print("Format error for item {}: {}".format(index, e))
-                    # 创建错误占位符
                     error_item = ["[Error formatting line]", "☲ Error"]
                     batch_results.append((index, [error_item], [result]))
             
@@ -1719,13 +1646,11 @@ class ResultsDisplayHandler:
             while True:
                 try:
                     batch = work_queue.get(timeout=0.1)
-                    if batch is None:  # 结束信号
+                    if batch is None:  
                         break
                     
-                    # 格式化这批结果
                     batch_results = format_batch(batch, formatter)
                     
-                    # 将结果放入队列
                     result_queue.put(batch_results)
                     
                 except queue.Empty:
@@ -1735,13 +1660,10 @@ class ResultsDisplayHandler:
         
         def format_all_results():
             """在后台线程中格式化所有结果"""
-            # 创建格式化器
             formatter = DisplayFormatter(Settings())
             
-            # 显示初始进度
             update_progress(0, force=True)
             
-            # 确定批处理大小和线程数
             if total_results < 50:
                 batch_size = 10
                 num_threads = 1
@@ -1758,25 +1680,21 @@ class ResultsDisplayHandler:
                 batch_size = 200
                 num_threads = 8
             
-            # 创建工作队列和结果队列
             work_queue = queue.Queue()
             result_queue = queue.Queue()
             
-            # 创建批次
             batches = []
             for i in range(0, total_results, batch_size):
                 batch = [(j, results[j]) for j in range(i, min(i + batch_size, total_results))]
                 batches.append(batch)
                 work_queue.put(batch)
             
-            # 添加结束信号
             for _ in range(num_threads):
                 work_queue.put(None)
             
             print("Processing {} results in {} batches with {} threads".format(
                 total_results, len(batches), num_threads))
             
-            # 启动工作线程
             threads = []
             for i in range(num_threads):
                 thread = threading.Thread(
@@ -1787,7 +1705,6 @@ class ResultsDisplayHandler:
                 thread.start()
                 threads.append(thread)
             
-            # 收集结果
             formatted_results = {}
             batches_completed = 0
             items_processed = 0
@@ -1797,16 +1714,13 @@ class ResultsDisplayHandler:
                     batch_results = result_queue.get(timeout=0.5)
                     batches_completed += 1
                     
-                    # 存储批次结果
                     for index, formatted, expanded in batch_results:
                         formatted_results[index] = (formatted, expanded)
                         items_processed += 1
                     
-                    # 更新进度
                     update_progress(items_processed)
                     
                 except queue.Empty:
-                    # 检查线程状态
                     alive_count = sum(1 for t in threads if t.is_alive())
                     if alive_count == 0:
                         print("All worker threads finished")
@@ -1814,50 +1728,39 @@ class ResultsDisplayHandler:
                 except Exception as e:
                     print("Error collecting results: {}".format(e))
             
-            # 等待所有线程完成
             for thread in threads:
                 thread.join(timeout=0.5)
             
-            # 确保所有结果都被处理
             if len(formatted_results) < total_results:
                 print("Warning: Only formatted {} out of {} results".format(
                     len(formatted_results), total_results))
             
-            # 按顺序组装最终结果
             for i in range(total_results):
                 if i in formatted_results:
                     formatted, expanded = formatted_results[i]
                     all_items.extend(formatted)
                     all_expanded.extend(expanded)
                 else:
-                    # 添加错误占位符
                     print("Missing result for index {}".format(i))
                     error_item = ["[Missing line {}]".format(i + 1), "☲ Error"]
                     all_items.append(error_item)
                     all_expanded.append(results[i] if i < len(results) else {})
             
-            # 最终进度更新
             update_progress(total_results, force=True)
             
-            # 准备显示
             placeholder_text = ResultsDisplayHandler._get_placeholder_text(keywords, total_results)
             formatted_keywords = ResultsDisplayHandler._format_keywords(keywords)
             
-            # 在主线程中显示 quick panel
             def show_panel():
-                # 清除进度条
                 sublime.status_message("Formatting complete - {} lines".format(len(all_items)))
                 
-                # 预加载附近的文件以提高响应速度
                 ResultsDisplayHandler._preload_files(window, all_expanded[:20])
                 
-                # 定义优化的回调
                 last_preview_index = [-1]
                 preview_timer = [None]
                 
                 def on_select(index):
                     if index == -1:
-                        # 取消预加载定时器
                         if preview_timer[0]:
                             sublime.set_timeout_async(lambda: None, 0)
                         
@@ -1878,23 +1781,19 @@ class ResultsDisplayHandler:
                 
                 def on_highlight(index):
                     if index >= 0 and index < len(all_expanded) and all_expanded[index]:
-                        # 取消之前的预览定时器
                         if preview_timer[0]:
                             preview_timer[0] = None
                         
-                        # 立即处理预览，不等待
                         if index != last_preview_index[0]:
                             last_preview_index[0] = index
                             
-                            # 直接调用预览，不延迟
                             ResultsDisplayHandler._handle_preview(
                                 window, all_expanded[index], keywords, scope, 
                                 highlight_segment_callback
                             )
                             
-                            # 预加载仍然异步执行，但不影响当前预览
                             def preload_nearby():
-                                if preview_timer[0] is None:  # 已取消
+                                if preview_timer[0] is None:  
                                     return
                                 start_idx = max(0, index - 5)
                                 end_idx = min(len(all_expanded), index + 15)
@@ -1903,7 +1802,6 @@ class ResultsDisplayHandler:
                             
                             preview_timer[0] = sublime.set_timeout_async(preload_nearby, 50)
                 
-                # 显示 quick panel
                 window.show_quick_panel(
                     all_items,
                     on_select,
@@ -1913,10 +1811,8 @@ class ResultsDisplayHandler:
                     placeholder_text
                 )
             
-            # 延迟一点显示，确保 UI 响应
             sublime.set_timeout(show_panel, 10)
         
-        # 启动后台格式化
         format_thread = threading.Thread(target=format_all_results)
         format_thread.daemon = True
         format_thread.start()
@@ -1931,7 +1827,6 @@ class ResultsDisplayHandler:
             file_path = item.get('file', '')
             if file_path and file_path not in seen_files:
                 seen_files.add(file_path)
-                # 仅预加载，不显示
                 window.open_file(file_path, sublime.TRANSIENT | sublime.FORCE_GROUP)
     
     @staticmethod
@@ -1947,7 +1842,6 @@ class ResultsDisplayHandler:
         if not keywords:
             return "All lines - {} lines found".format(results_count)
         
-        # 限制显示的关键词数量，避免占位符过长
         display_keywords = keywords[:5]
         placeholder_keywords = [
             '{}{}'.format(
@@ -1971,7 +1865,6 @@ class ResultsDisplayHandler:
         file_path = item['file']
         line_number = item.get('line_number', 1) - 1
         
-        # 清空储存的关键词
         keyword_state_manager.stored_keywords = ""
         keyword_state_manager.debug_print("_handle_selection(): Search completed, clearing stored keywords")
         
@@ -1984,7 +1877,6 @@ class ResultsDisplayHandler:
             
             if target_view:
                 window.focus_view(target_view)
-                # 使用更精确的定位
                 point = target_view.text_point(line_number, 0)
                 target_view.sel().clear()
                 target_view.sel().add(sublime.Region(point))
@@ -1994,7 +1886,6 @@ class ResultsDisplayHandler:
                 highlight_segment_callback(target_view, item, line_number)
                 return
         
-        # 打开文件并定位
         view = window.open_file(
             "{0}:{1}:0".format(file_path, line_number + 1),
             sublime.ENCODED_POSITION
@@ -2015,7 +1906,6 @@ class ResultsDisplayHandler:
         file_path = item['file']
         line_number = item.get('line_number', 1) - 1
         
-        # 对于已打开的文件，直接处理
         if scope == 'open_files':
             for view in window.views():
                 if view.file_name() == file_path:
@@ -2025,12 +1915,10 @@ class ResultsDisplayHandler:
                     view.sel().add(sublime.Region(point))
                     view.show_at_center(point)
                     
-                    # 同步高亮
                     highlighter.highlight(view, keywords)
                     highlight_segment_callback(view, item, line_number)
                     return
         
-        # 检查文件是否已经在某个视图中打开
         target_view = None
         for view in window.views():
             if view.file_name() == file_path:
@@ -2038,7 +1926,6 @@ class ResultsDisplayHandler:
                 break
         
         if target_view:
-            # 文件已打开，直接使用
             window.focus_view(target_view)
             point = target_view.text_point(line_number, 0)
             target_view.sel().clear()
@@ -2048,16 +1935,12 @@ class ResultsDisplayHandler:
             highlighter.highlight(target_view, keywords)
             highlight_segment_callback(target_view, item, line_number)
         else:
-            # 需要打开新文件
             view = window.open_file(file_path, sublime.TRANSIENT | sublime.FORCE_GROUP)
             
-            # 使用更快的检查间隔
             def goto_line():
                 if view.is_loading():
-                    # 减少检查间隔到10ms
                     sublime.set_timeout(goto_line, 10)
                 else:
-                    # 文件加载完成，立即执行所有操作
                     point = view.text_point(line_number, 0)
                     view.sel().clear()
                     view.sel().add(sublime.Region(point))
@@ -2066,11 +1949,9 @@ class ResultsDisplayHandler:
                     highlighter.highlight(view, keywords)
                     highlight_segment_callback(view, item, line_number)
             
-            # 立即开始检查，不使用异步
             goto_line()
 
 
-# 添加视图缓存类
 class ViewCache:
     """视图缓存管理器"""
     def __init__(self):
@@ -2079,7 +1960,6 @@ class ViewCache:
     
     def get_view_for_file(self, window, file_path):
         """获取文件对应的视图"""
-        # 先检查缓存
         if file_path in self._cache:
             view = self._cache[file_path]
             if view and view.is_valid():
@@ -2087,7 +1967,6 @@ class ViewCache:
             else:
                 del self._cache[file_path]
         
-        # 查找已打开的视图
         for view in window.views():
             if view.file_name() == file_path:
                 self._cache[file_path] = view
@@ -2099,7 +1978,6 @@ class ViewCache:
     def _cleanup_cache(self):
         """清理缓存"""
         if len(self._cache) > self._max_size:
-            # 移除无效的视图
             invalid_keys = [k for k, v in self._cache.items() 
                           if not v or not v.is_valid()]
             for key in invalid_keys:
@@ -2154,7 +2032,6 @@ class QuickLineNavigatorCommand(BaseSearchCommand):
     def run(self, scope="file"):
         self.scope = scope
         
-        # 根据 scope 初始化必要的属性
         if scope == "file":
             view = self.window.active_view()
             if not view or not view.file_name():
@@ -2169,7 +2046,7 @@ class QuickLineNavigatorCommand(BaseSearchCommand):
                     self.folders = [custom_folder]
                 else:
                     self.folders = self.window.folders()
-            else:  # project
+            else:  
                 self.folders = self.window.folders()
             
             if not self.folders:
@@ -2513,7 +2390,6 @@ class QuickLineNavigatorEventListener(sublime_plugin.EventListener):
         if not view or not view.is_valid():
             return
         
-        # 检查是否有活动的搜索面板
         if keyword_state_manager.has_active_panel():
             return
         
@@ -2574,12 +2450,10 @@ def plugin_loaded():
             pass
 
 
-# 清理函数
 def plugin_unloaded():
     highlighter.clear_all()
     view_cache.clear()
 
-# 全局实例
 keyword_state_manager = KeywordStateManager()
 settings = Settings()
 ugrep = UgrepExecutor()

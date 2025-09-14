@@ -4,7 +4,7 @@ A powerful Sublime Text plugin that applies accurate pre-filters to narrow candi
 
 ## 📺 Demo
 
-https://github.com/user-attachments/assets/ad9de4b8-d4ec-4272-a025-c83bc3a1af27
+https://github.com/user-attachments/assets/67b14314-0819-4472-95c2-8a4d6a2e9b4f
 
 ## 🎯 Usage Tips
 

@@ -42,7 +42,7 @@ https://github.com/user-attachments/assets/ad9de4b8-d4ec-4272-a025-c83bc3a1af27
 | Set Search Folder | `Ctrl+Alt+D` | `Cmd+Alt+D` | Choose a specific folder for searches |
 | Clear Search Folder | `Ctrl+Alt+Shift+D` | `Cmd+Alt+Shift+D` | Remove custom search folder |
 
-### ✨ Highlight Management
+### ✨ Highlight Management (unnecessary)
 | Command | Windows/Linux | Mac | Description |
 |---------|---------------|-----|-------------|
 | Clear All Highlights | `Ctrl+Alt+H` | `Cmd+Alt+H` | Remove highlights from all views |

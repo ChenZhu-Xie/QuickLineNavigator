@@ -6,6 +6,7 @@ __pycache__/
 
 # Sublime Text
 *.sublime-workspace
+*.sublime-project
 
 # OS
 .DS_Store

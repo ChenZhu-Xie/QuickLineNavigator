@@ -2,6 +2,42 @@
 
 A powerful Sublime Text plugin that applies accurate pre-filters to narrow candidate lines before performing fuzzy matching and navigating through lines in your codebase.
 
+1. [Usage Tips](#usage-tips)
+2. [Key Bindings](#key-bindings)
+   2.1. [Main Navigation](#main-navigation)
+   2.2. [Search Commands](#search-commands)
+   2.3. [Filter Controls](#filter-controls)
+   2.4. [Folder Settings](#folder-settings)
+   2.5. [Highlight Management (unnecessary for now)](#highlight-management-unnecessary-for-now)
+3. [File Extension Filtering](#file-extension-filtering)
+   3.1. [Examples](#examples)
+   3.2. [Special Values](#special-values)
+4. [Installation](#installation)
+   4.1. [Package Control Installation (Recommended)](#package-control-installation-recommended)
+   4.2. [Manual Installation](#manual-installation)
+5. [Plugin Directory Structure](#plugin-directory-structure)
+6. [Setting Up ugrep Binary Files](#setting-up-ugrep-binary-files)
+   6.1. [Obtaining ugrep Binaries](#obtaining-ugrep-binaries)
+       6.1.1. [Option 1: Download Pre-compiled Binaries (Recommended)](#option-1-download-pre-compiled-binaries-recommended)
+       6.1.2. [Option 2: Install via Package Manager](#option-2-install-via-package-manager)
+       6.1.3. [Option 3: Compile from Source](#option-3-compile-from-source)
+   6.2. [Verifying ugrep Installation](#verifying-ugrep-installation)
+7. [Features](#features)
+   7.1. [Multi-scope Search](#multi-scope-search)
+   7.2. [Smart Keyword System](#smart-keyword-system)
+   7.3. [Intelligent File Filtering](#intelligent-file-filtering)
+   7.4. [High-Performance Search Engine](#high-performance-search-engine)
+   7.5. [Beautiful User Interface](#beautiful-user-interface)
+8. [Default Settings](#default-settings)
+9. [Acknowledgments](#acknowledgments)
+   9.1. [Plugin Inspirations](#plugin-inspirations)
+   9.2. [Conceptual Alignment](#conceptual-alignment)
+   9.3. [Development Tools](#development-tools)
+   9.4. [Special Thanks](#special-thanks)
+10. [License](#license)
+11. [Contributing](#contributing)
+12. [Issues](#issues)
+
 ## 📺 Demo
 
 https://github.com/user-attachments/assets/67b14314-0819-4472-95c2-8a4d6a2e9b4f

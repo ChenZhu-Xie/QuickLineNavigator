@@ -103,14 +103,14 @@ The `file_extensions` setting supports various configurations:
 
 ```json
 {
-    "file_extensions": ["."],           // Only files with extensions
-    "file_extensions": [""],            // Only files without extensions
-    "file_extensions": ["*"],           // All files
-    "file_extensions": [],              // All files (same as above)
-    "file_extensions": ["py", "js"],    // Only .py and .js files
+    "file_extensions": ["."],            // Only files with extensions
+    "file_extensions": [""],             // Only files without extensions
+    "file_extensions": ["*"],            // All files
+    "file_extensions": [],               // All files (same as above)
+    "file_extensions": ["py", "js"],     // Only .py and .js files
     "file_extensions": ["*.py", "*.js"], // Same as above (wildcard format)
-    "file_extensions": ["py", ""],      // .py files + files without extensions
-    "file_extensions": [".", "py"]      // All files with extensions (including .py)
+    "file_extensions": ["py", ""],       // .py files + files without extensions
+    "file_extensions": [".", "py"]       // All files with extensions (including .py)
 }
 ```
 

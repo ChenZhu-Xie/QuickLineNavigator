@@ -9,16 +9,18 @@ https://github.com/user-attachments/assets/67b14314-0819-4472-95c2-8a4d6a2e9b4f
 ## 🎯 Usage Tips
 
 1. **Quick Search**: Select text and press `Alt+R` to search it instantly
+  - `word1 word2`: Find lines containing both words
 2. **Multiple Keywords**: Use spaces to separate multiple search terms
-3. **Exact Phrases**: Use quotes for exact phrase matching: `"error message"`
+  - `` `phrase with backticks` ``: Alternative phrase syntax
+3. **Exact Phrases**: Use quotes for exact phrase matching: `` `error message` ``
 4. **Filter Toggle**: Quickly toggle filters with `Ctrl+Alt+F` when needed
-5. **Persistent Highlights**: Keywords remain highlighted until explicitly cleared
+5. **Persistent Highlights**: Keywords remain highlighted **until** _cursor_ **move out of** _current line_
 
 ## ⌨️ Key Bindings
 
-### 🎯 Main Navigation
-| Command | Windows/Linux | Mac | Description |
-|---------|---------------|-----|-------------|
+### 🧭 Main Navigation
+| Command   | Windows/Linux  | Mac           | Description                       |
+| --------- | -------------- | ------------- | --------------------------------- |
 | Main Menu | `Ctrl+Shift+Q` | `Cmd+Shift+Q` | Open QuickLineNavigator main menu |
 
 ### 🔍 Search Commands
@@ -30,29 +32,60 @@ https://github.com/user-attachments/assets/67b14314-0819-4472-95c2-8a4d6a2e9b4f
 | Search Open Files | `Ctrl+Shift+Alt+R` | `Cmd+Shift+Alt+R` | Search keywords in all open files |
 
 ### 🎛️ Filter Controls
-| Command | Windows/Linux | Mac | Description |
-|---------|---------------|-----|-------------|
-| Toggle Extension Filters | `Ctrl+Alt+F` | `Cmd+Alt+F` | Enable/disable extension filters permanently |
+| Command                    | Windows/Linux      | Mac               | Description                                       |
+| -------------------------- | ------------------ | ----------------- | ------------------------------------------------- |
+| Toggle Extension Filters   | `Ctrl+Alt+F`       | `Cmd+Alt+F`       | Enable/disable extension filters permanently      |
 | Toggle Filters Temporarily | `Ctrl+Alt+Shift+F` | `Cmd+Alt+Shift+F` | Enable/disable extension filters for this session |
-| Show Filter Status | `Ctrl+Alt+S` | `Cmd+Alt+S` | Display current filter settings |
+| Show Filter Status         | `Ctrl+Alt+S`       | `Cmd+Alt+S`       | Display current filter settings                   |
 
 ### 📁 Folder Settings
-| Command | Windows/Linux | Mac | Description |
-|---------|---------------|-----|-------------|
-| Set Search Folder | `Ctrl+Alt+D` | `Cmd+Alt+D` | Choose a specific folder for searches |
-| Clear Search Folder | `Ctrl+Alt+Shift+D` | `Cmd+Alt+Shift+D` | Remove custom search folder |
+| Command             | Windows/Linux      | Mac               | Description                           |
+| ------------------- | ------------------ | ----------------- | ------------------------------------- |
+| Set Search Folder   | `Ctrl+Alt+D`       | `Cmd+Alt+D`       | Choose a specific folder for searches |
+| Clear Search Folder | `Ctrl+Alt+Shift+D` | `Cmd+Alt+Shift+D` | Remove custom search folder           |
 
-### ✨ Highlight Management (unnecessary)
-| Command | Windows/Linux | Mac | Description |
-|---------|---------------|-----|-------------|
-| Clear All Highlights | `Ctrl+Alt+H` | `Cmd+Alt+H` | Remove highlights from all views |
+### ✨ Highlight Management (unnecessary for now)
+| Command                       | Windows/Linux  | Mac           | Description                         |
+| ----------------------------- | -------------- | ------------- | ----------------------------------- |
+| Clear All Highlights          | `Ctrl+Alt+H`   | `Cmd+Alt+H`   | Remove highlights from all views    |
 | Clear Current View Highlights | `Ctrl+Shift+H` | `Cmd+Shift+H` | Remove highlights from current view |
+
+## 🎛️ File Extension Filtering
+
+The `file_extensions` setting supports various configurations:
+
+| Configuration                       | Effect                            | Search Scope / Examples                                                          |
+| ----------------------------------- | --------------------------------- | -------------------------------------------------------------------------------- |
+| `["."]`                             | Only files **with extensions**    | Files with extensions like `main.py`, `index.html`, but not `README`, `Makefile` |
+| `[""]`                              | Only files **without extensions** | `README`, `Makefile`, `LICENSE`, etc.                                            |
+| `[]` or `["*"]`                     | **All files** (except blacklist)  | All files like `main.py`, `README`, etc., unless blacklisted                     |
+| `["py"]` or `[".py"]` or `["*.py"]` | Only specific extension files     | `*.py` files like `main.py`, `test.py`                                           |
+
+### Examples
+
+```json
+{
+    "file_extensions": ["."],           // Only files with extensions
+    "file_extensions": [""],            // Only files without extensions
+    "file_extensions": ["*"],           // All files
+    "file_extensions": [],              // All files (same as above)
+    "file_extensions": ["py", "js"],    // Only .py and .js files
+    "file_extensions": ["*.py", "*.js"], // Same as above (wildcard format)
+    "file_extensions": ["py", ""],      // .py files + files without extensions
+    "file_extensions": [".", "py"]      // All files with extensions (including .py)
+}
+```
+
+### Special Values
+- `"*"` - Match all files
+- `"."` - Match only files with extensions
+- `""` - Match only files without extensions
 
 ## 📦 Installation
 
 ### Package Control Installation (Recommended)
 1. Install [Package Control](https://packagecontrol.io/installation) if you haven't already
-2. Open Command Palette: 
+2. Open Command Palette:
    - Windows/Linux: `Ctrl+Shift+P`
    - macOS: `Cmd+Shift+P`
 3. Type `Package Control: Install Package` and press Enter
@@ -79,7 +112,7 @@ https://github.com/user-attachments/assets/67b14314-0819-4472-95c2-8a4d6a2e9b4f
      - **Linux**: `~/.config/sublime-text/Packages/QuickLineNavigator/`
 
 4. **Verify Installation**
-   - Restart Sublime Text
+   - Restart Sublime Text (and wait for a minute)
    - Open Command Palette and search for `QuickLineNavigator`
    - You should see available commands
 
@@ -88,22 +121,18 @@ https://github.com/user-attachments/assets/67b14314-0819-4472-95c2-8a4d6a2e9b4f
 ```
 QuickLineNavigator/
 ├── QuickLineNavigator.py                 # Main plugin code
-├── QuickLineNavigator.sublime-commands   # Command palette entries
-├── QuickLineNavigator.sublime-settings   # Default settings
+├── Default.sublime-commands              # Command palette entries
+├── Default.sublime-settings              # Default settings
 ├── Default (Windows).sublime-keymap      # Windows key bindings
 ├── Default (Linux).sublime-keymap        # Linux key bindings
 ├── Default (OSX).sublime-keymap          # macOS key bindings
 ├── Main.sublime-menu                     # Menu integration
 ├── README.md                             # Documentation
 ├── LICENSE                               # License file
-├── .gitignore                           # Git ignore rules
-├── messages.json                        # Package Control messages
-├── messages/                            # Message files
-│   └── install.txt                      # Post-install message
-└── bin/                                 # Binary executables
-    ├── ugrep.exe                        # Windows executable
-    ├── ugrep                            # Linux executable
-    └── ugrep_mac                        # macOS executable
+├── .gitignore                            # Git ignore rules
+├── messages.json                         # Package Control messages
+└── messages/                             # Message files
+    └── install.txt                       # Post-install message
 ```
 
 ## 🔧 Setting Up ugrep Binary Files
@@ -119,22 +148,22 @@ Visit the [ugrep releases page](https://github.com/Genivia/ugrep/releases) and d
 1. **Windows**
    - Download `ugrep-win64.zip` or `ugrep-win32.zip`
    - Extract `ugrep.exe` from the zip file
-   - Place it in `QuickLineNavigator/bin/ugrep.exe`
+   - Place it wherever, but remember to add the path of `ugrep.exe` to system `PATH`
 
 2. **macOS**
    - **Intel Mac**: Download `ugrep-macosx-x64.zip`
    - **Apple Silicon (M1/M2)**: Download `ugrep-macosx-arm64.zip`
    - Extract the `ugrep` binary from the zip file
    - Rename it to `ugrep_mac`
-   - Place it in `QuickLineNavigator/bin/ugrep_mac`
    - Make it executable: `chmod +x bin/ugrep_mac`
+   - Place it wherever, but remember to add the path of `ugrep.exe` to system `PATH`
 
 3. **Linux**
    - **x64**: Download `ugrep-linux-x64.zip`
    - **ARM64**: Download `ugrep-linux-arm64.zip`
    - Extract the `ugrep` binary from the zip file
-   - Place it in `QuickLineNavigator/bin/ugrep`
    - Make it executable: `chmod +x bin/ugrep`
+   - Place it wherever, but remember to add the path of `ugrep.exe` to system `PATH`
 
 #### Option 2: Install via Package Manager
 
@@ -186,13 +215,9 @@ chmod +x /path/to/QuickLineNavigator/bin/ugrep*
 
 ### Verifying ugrep Installation
 
-After placing the binaries, your plugin structure should look like:
+Open terminal/command prompt and run:
 ```
-QuickLineNavigator/
-└── bin/
-    ├── ugrep.exe      # Windows binary
-    ├── ugrep          # Linux binary (executable)
-    └── ugrep_mac      # macOS binary (executable)
+ugrep --version
 ```
 
 The plugin will automatically detect and use the appropriate binary for your platform. If ugrep is not found, it will fall back to Python-based search, which is slower but fully functional.
@@ -276,30 +301,30 @@ Access settings via `Preferences` → `Package Settings` → `QuickLineNavigator
 {
     // Default search scope: "file", "folder", "project", "open_files"
     "default_search_scope": "file",
-    
+
     // Show line numbers in search results
     "show_line_numbers": true,
-    
+
     // Preview highlights while typing in search input
     "preview_on_highlight": true,
-    
+
     // Custom search folder path (empty uses project folders)
     "search_folder_path": "",
-    
+
     // Enable file extension filters globally
     "extension_filters": true,
-    
+
     // Scope-specific filter settings (null inherits global setting)
     "extension_filters_file": false,      // Disabled for current file search
     "extension_filters_folder": true,     // Enabled for folder search
     "extension_filters_project": null,    // Inherits global setting
     "extension_filters_open_files": false,// Disabled for open files search
-    
+
     // Maximum display width for search results (in characters)
     "max_display_length": 120,
-    
+
     // Whitelisted file extensions (empty array = all files)
-    // Examples: ["py", "js", "txt", "md"]
+    // Examples: [".py", ".js", "txt", "md"]
     "file_extensions": [],
     
     // Blacklisted file extensions (without dots)

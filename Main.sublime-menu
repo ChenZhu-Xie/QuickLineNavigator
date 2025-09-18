@@ -9,10 +9,29 @@
                         "caption": "QuickLineNavigator",
                         "children": [
                             {
-                                "caption": "Settings",
+                                "caption": "README",
+                                "command": "open_file",
+                                "args": {
+                                    "file": "${packages}/QuickLineNavigator/README.md"
+                                }
+                            },
+                            {
+                                "caption": "-"
+                            },
+                            {
+                                "caption": "Settings – Default",
                                 "command": "edit_settings",
                                 "args": {
-                                    "base_file": "${packages}/QuickLineNavigator/QuickLineNavigator.sublime-settings",
+                                    "base_file": "${packages}/QuickLineNavigator/Default.sublime-settings",
+                                    "default": "{\n\t$0\n}\n"
+                                }
+                            },
+                            {
+                                "caption": "Settings – User",
+                                "command": "edit_settings",
+                                "args": {
+                                    "base_file": "${packages}/QuickLineNavigator/Default.sublime-settings",
+                                    "user_file": "${packages}/User/QuickLineNavigator.sublime-settings",
                                     "default": "{\n\t$0\n}\n"
                                 }
                             },
@@ -20,10 +39,19 @@
                                 "caption": "-"
                             },
                             {
-                                "caption": "Key Bindings",
+                                "caption": "Key Bindings – Default",
                                 "command": "edit_settings",
                                 "args": {
                                     "base_file": "${packages}/QuickLineNavigator/Default (${platform}).sublime-keymap",
+                                    "default": "[\n\t$0\n]\n"
+                                }
+                            },
+                            {
+                                "caption": "Key Bindings – User",
+                                "command": "edit_settings",
+                                "args": {
+                                    "base_file": "${packages}/QuickLineNavigator/Default (${platform}).sublime-keymap",
+                                    "user_file": "${packages}/User/Default (${platform}).sublime-keymap",
                                     "default": "[\n\t$0\n]\n"
                                 }
                             }

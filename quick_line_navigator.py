@@ -368,46 +368,19 @@ class UgrepExecutor:
         self.windows_pattern = re.compile(r'^([A-Za-z]:[^:]+):(\d+):(.*)$')
     
     def _find_executable(self):
-        plugin_dir = os.path.dirname(os.path.abspath(__file__))
-        system = platform.system().lower()
-        
-        if system == "windows":
-            paths = [
-                os.path.join(plugin_dir, "bin", "ugrep.exe"),
-                os.path.join(plugin_dir, "ugrep.exe"),
-                "ugrep.exe"
-            ]
-        elif system == "darwin":
-            paths = [
-                os.path.join(plugin_dir, "bin", "ugrep_mac"),
-                os.path.join(plugin_dir, "bin", "ugrep"),
-                os.path.join(plugin_dir, "ugrep_mac"),
-                os.path.join(plugin_dir, "ugrep"),
-                "ugrep"
-            ]
-        else:
-            paths = [
-                os.path.join(plugin_dir, "bin", "ugrep"),
-                os.path.join(plugin_dir, "ugrep"),
-                "ugrep"
-            ]
-        
-        for path in paths:
-            try:
-                if os.path.sep not in path and not os.path.isabs(path):
-                    import shutil
-                    found = shutil.which(path)
-                    if found:
-                        return found
-                elif os.path.exists(path) and os.path.isfile(path):
-                    if system != "windows" and not os.access(path, os.X_OK):
-                        try:
-                            os.chmod(path, 0o755)
-                        except:
-                            continue
-                    return path
-            except:
-                continue
+        """查找 ugrep 可执行文件"""
+        # 只在系统 PATH 中查找
+        try:
+            import shutil
+            found = shutil.which("ugrep")
+            if found:
+                print("🔧 Found ugrep at: {}".format(found))
+                return found
+        except Exception as e:
+            print("🔧 Error finding ugrep: {}".format(e))
+
+        print("⚠️ ugrep not found in PATH. Install ugrep for better performance.")
+        print("   See: https://github.com/Genivia/ugrep#install")
         return None
     
     def search(self, paths, keywords, file_filter):
@@ -566,6 +539,43 @@ class UgrepExecutor:
         return filtered
 
 
+class ShowSearchEngineStatusCommand(sublime_plugin.WindowCommand):
+    """显示搜索引擎状态"""
+    def run(self):
+        ugrep_executor = UgrepExecutor()
+
+        status_lines = ["QuickLineNavigator Search Engine Status:"]
+        status_lines.append("-" * 40)
+
+        if ugrep_executor.path:
+            status_lines.append("✅ ugrep: Available at {}".format(ugrep_executor.path))
+
+            # 获取版本信息
+            try:
+                result = subprocess.run([ugrep_executor.path, "--version"],
+                                      capture_output=True, text=True, timeout=5)
+                if result.returncode == 0:
+                    version_line = result.stdout.split('\n')[0] if result.stdout else "Unknown version"
+                    status_lines.append("   Version: {}".format(version_line))
+            except:
+                pass
+
+            status_lines.append("   Performance: Optimized for large projects")
+        else:
+            status_lines.append("⚠️ ugrep: Not available")
+            status_lines.append("   Using: Python fallback search")
+            status_lines.append("   Performance: Good for small to medium projects")
+            status_lines.append("")
+            status_lines.append("To install ugrep:")
+            status_lines.append("• Windows: choco install ugrep")
+            status_lines.append("• macOS: brew install ugrep")
+            status_lines.append("• Linux: apt install ugrep")
+
+        output_view = self.window.create_output_panel("search_engine_status")
+        output_view.run_command("append", {"characters": "\n".join(status_lines)})
+        self.window.run_command("show_panel", {"panel": "output.search_engine_status"})
+
+
 class SearchEngine:
     """搜索引擎"""
     def __init__(self, settings, scope, window=None):
@@ -574,6 +584,27 @@ class SearchEngine:
         self.window = window
         self.file_filter = FileFilter(settings, scope, window)
         self.ugrep = UgrepExecutor()
+
+        if not self.ugrep.path and not getattr(SearchEngine, '_ugrep_warning_shown', False):
+            self._show_ugrep_installation_info()
+            SearchEngine._ugrep_warning_shown = True
+
+    def _show_ugrep_installation_info(self):
+        def show_dialog():
+            message = (
+                "QuickLineNavigator can use 'ugrep' for faster searching.\n\n"
+                "To install ugrep:\n"
+                "• Windows: Download from https://github.com/Genivia/ugrep/releases\n"
+                "• macOS: brew install ugrep\n"
+                "• Linux: apt install ugrep (or equivalent)\n\n"
+                "The plugin will work with built-in Python search if ugrep is not available."
+            )
+
+            if sublime.ok_cancel_dialog(message, "Open Installation Guide"):
+                import webbrowser
+                webbrowser.open("https://github.com/Genivia/ugrep#install")
+
+        sublime.set_timeout(show_dialog, 1000)
     
     def search(self, paths, keywords, original_keywords=""):
         if not paths:

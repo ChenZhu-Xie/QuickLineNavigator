@@ -47,9 +47,9 @@ https://github.com/user-attachments/assets/67b14314-0819-4472-95c2-8a4d6a2e9b4f
 ## 🎯 Usage Tips
 
 1. **Quick Search**: Select text and press `Alt+R` to search it instantly
-  - `word1 word2`: Find lines containing both words
+   - `word1 word2`: Find lines containing both words
 2. **Multiple Keywords**: Use spaces to separate multiple search terms
-  - `` `phrase with backticks` ``: Alternative phrase syntax
+   - `` `phrase with backticks` ``: Alternative phrase syntax
 3. **Exact Phrases**: Use quotes for exact phrase matching: `` `error message` ``
 4. **Filter Toggle**: Quickly toggle filters with `Ctrl+Alt+F` when needed
 5. **Persistent Highlights**: Keywords remain highlighted **until** _cursor_ **move out of** _current line_

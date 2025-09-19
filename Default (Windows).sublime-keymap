@@ -1,23 +1,20 @@
 [
     // === Main Menu ===
-    { "keys": ["ctrl+shift+q"], "command": "quick_line_navigator_menu" },
+    { "keys": ["ctrl+alt+q"], "command": "quick_line_navigator_menu" },
 
     // === Main Search Features ===
-    { "keys": ["alt+r"], "command": "quick_line_navigator", "args": {"scope": "file"} },
+    { "keys": ["ctrl+alt+f"], "command": "quick_line_navigator", "args": {"scope": "file"} },
+    { "keys": ["shift+alt+f"], "command": "quick_line_navigator_open_files" },
+
     { "keys": ["ctrl+alt+r"], "command": "quick_line_navigator", "args": {"scope": "project"} },
     { "keys": ["shift+alt+r"], "command": "quick_line_navigator", "args": {"scope": "folder"} },
-    { "keys": ["ctrl+shift+alt+r"], "command": "quick_line_navigator_open_files" },
-    
+
     // === Filter Controls ===
-    { "keys": ["ctrl+alt+f"], "command": "toggle_extension_filters" },
-    { "keys": ["ctrl+alt+shift+f"], "command": "toggle_extension_filters_temporary" },
-    { "keys": ["ctrl+alt+s"], "command": "show_filter_status" },
-    
+    { "keys": ["ctrl+alt+e"], "command": "toggle_extension_filters_temporary" },
+    { "keys": ["ctrl+alt+shift+e"], "command": "toggle_extension_filters" },
+    { "keys": ["ctrl+alt+shift+q"], "command": "show_filter_status" },
+
     // === Folder Settings ===
     { "keys": ["ctrl+alt+d"], "command": "set_search_folder" },
     { "keys": ["ctrl+alt+shift+d"], "command": "clear_search_folder" },
-    
-    // === Highlight Management ===
-    { "keys": ["ctrl+alt+h"], "command": "clear_keyword_highlights" },
-    { "keys": ["ctrl+shift+h"], "command": "clear_current_view_highlights" }
 ]

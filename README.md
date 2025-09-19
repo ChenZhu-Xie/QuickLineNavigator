@@ -46,12 +46,13 @@ https://github.com/user-attachments/assets/67b14314-0819-4472-95c2-8a4d6a2e9b4f
 
 ## 🎯 Usage Tips
 
-1. **Quick Search**: Select text and press `Alt+R` to search it instantly
-   - `word1 word2`: Find lines containing both words
+1. **Quick Search**: Select text and press `Ctrl+Alt+F` to search it instantly
+   - `word1 word2`: Find lines containing both words.
+   - Select next text and press `Ctrl+Alt+F` for incremental search.
 2. **Multiple Keywords**: Use spaces to separate multiple search terms
    - `` `phrase with backticks` ``: Alternative phrase syntax
 3. **Exact Phrases**: Use quotes for exact phrase matching: `` `error message` ``
-4. **Filter Toggle**: Quickly toggle filters with `Ctrl+Alt+F` when needed
+4. **Filter Toggle**: Quickly toggle filters with `Ctrl+Alt+E` when needed
 5. **Persistent Highlights**: Keywords remain highlighted **until** _cursor_ **move out of** _current line_
 
 ## ⌨️ Key Bindings
@@ -59,34 +60,28 @@ https://github.com/user-attachments/assets/67b14314-0819-4472-95c2-8a4d6a2e9b4f
 ### 🧭 Main Navigation
 | Command   | Windows/Linux  | Mac           | Description                       |
 | --------- | -------------- | ------------- | --------------------------------- |
-| Main Menu | `Ctrl+Shift+Q` | `Cmd+Shift+Q` | Open QuickLineNavigator main menu |
+| Main Menu | `Ctrl+Alt+Q` | `Super+Option+Q` | Open QuickLineNavigator main menu |
 
 ### 🔍 Search Commands
 | Command | Windows/Linux | Mac | Description |
 |---------|---------------|-----|-------------|
-| Search Current File | `Alt+R` | `Alt+R` | Search keywords in the active file |
-| Search Project | `Ctrl+Alt+R` | `Cmd+Alt+R` | Search keywords in all project folders |
-| Search Folder | `Shift+Alt+R` | `Shift+Alt+R` | Search keywords in specific folder |
-| Search Open Files | `Ctrl+Shift+Alt+R` | `Cmd+Shift+Alt+R` | Search keywords in all open files |
+| Search Current File | `Ctrl+Alt+F` | `Super+Option+F` | Search keywords in the active file |
+| Search Open Files | `Shift+Alt+F` | `Shift+Option+F` | Search keywords in all open files |
+| Search Project | `Ctrl+Alt+R` | `Super+Option+R` | Search keywords in all project folders |
+| Search Folder | `Shift+Alt+R` | `Shift+Option+R` | Search keywords in specific folder |
 
 ### 🎛️ Filter Controls
 | Command                    | Windows/Linux      | Mac               | Description                                       |
 | -------------------------- | ------------------ | ----------------- | ------------------------------------------------- |
-| Toggle Extension Filters   | `Ctrl+Alt+F`       | `Cmd+Alt+F`       | Enable/disable extension filters permanently      |
-| Toggle Filters Temporarily | `Ctrl+Alt+Shift+F` | `Cmd+Alt+Shift+F` | Enable/disable extension filters for this session |
-| Show Filter Status         | `Ctrl+Alt+S`       | `Cmd+Alt+S`       | Display current filter settings                   |
+| Toggle Extension Filters   | `Ctrl+Alt+Shift+E`       | `Super+Option+Shift+E`       | Enable/disable extension filters permanently      |
+| Toggle Filters Temporarily | `Ctrl+Alt+E` | `Super+Option+E` | Enable/disable extension filters for this session |
+| Show Filter Status         | `Ctrl+Alt+Shift+Q`       | `Super+Option+Shift+Q`       | Display current filter settings                   |
 
 ### 📁 Folder Settings
 | Command             | Windows/Linux      | Mac               | Description                           |
 | ------------------- | ------------------ | ----------------- | ------------------------------------- |
-| Set Search Folder   | `Ctrl+Alt+D`       | `Cmd+Alt+D`       | Choose a specific folder for searches |
-| Clear Search Folder | `Ctrl+Alt+Shift+D` | `Cmd+Alt+Shift+D` | Remove custom search folder           |
-
-### ✨ Highlight Management (unnecessary for now)
-| Command                       | Windows/Linux  | Mac           | Description                         |
-| ----------------------------- | -------------- | ------------- | ----------------------------------- |
-| Clear All Highlights          | `Ctrl+Alt+H`   | `Cmd+Alt+H`   | Remove highlights from all views    |
-| Clear Current View Highlights | `Ctrl+Shift+H` | `Cmd+Shift+H` | Remove highlights from current view |
+| Set Search Folder   | `Ctrl+Alt+D`       | `Super+Option+D`       | Choose a specific folder for searches |
+| Clear Search Folder | `Ctrl+Alt+Shift+D` | `Super+Option+Shift+D` | Remove custom search folder           |
 
 ## 🎛️ File Extension Filtering
 
@@ -125,7 +120,7 @@ The `file_extensions` setting supports various configurations:
 1. Install [Package Control](https://packagecontrol.io/installation) if you haven't already
 2. Open Command Palette:
    - Windows/Linux: `Ctrl+Shift+P`
-   - macOS: `Cmd+Shift+P`
+   - macOS: `Super+Shift+P`
 3. Type `Package Control: Install Package` and press Enter
 4. Search for `QuickLineNavigator` and press Enter
 5. Wait for installation to complete

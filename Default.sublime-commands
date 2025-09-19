@@ -1,11 +1,11 @@
 [
-    // === 主菜单 ===
+    // === Main Menu ===
     {
         "caption": "QuickLineNavigator: Show Menu",
         "command": "quick_line_navigator_menu"
     },
     
-    // === 主要搜索功能 ===
+    // === Main Search Features ===
     {
         "caption": "QuickLineNavigator: Search in Current File",
         "command": "quick_line_navigator",
@@ -26,7 +26,7 @@
         "command": "quick_line_navigator_open_files"
     },
     
-    // === 过滤器控制 ===
+    // === Filter Controls ===
     {
         "caption": "QuickLineNavigator: Toggle Extension Filters (Permanent)",
         "command": "toggle_extension_filters"
@@ -40,7 +40,7 @@
         "command": "show_filter_status"
     },
     
-    // === 文件夹设置 ===
+    // === Folder Settings ===
     {
         "caption": "QuickLineNavigator: Set Search Folder",
         "command": "set_search_folder"
@@ -49,14 +49,4 @@
         "caption": "QuickLineNavigator: Clear Search Folder",
         "command": "clear_search_folder"
     },
-    
-    // === 高亮管理 ===
-    {
-        "caption": "QuickLineNavigator: Clear All Keyword Highlights",
-        "command": "clear_keyword_highlights"
-    },
-    {
-        "caption": "QuickLineNavigator: Clear Current View Highlights",
-        "command": "clear_current_view_highlights"
-    }
 ]

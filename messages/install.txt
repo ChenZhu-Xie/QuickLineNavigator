@@ -4,8 +4,8 @@
 Thank you for installing QuickLineNavigator!
 
 To get started:
-1. Press Ctrl+Alt+Q (Cmd+Alt+Q on macOS) to open the main menu
-2. Or use Alt+R to search in the current file
+1. Press Ctrl+Alt+Q (Super+Option+Q on macOS) to open the main menu
+2. Or use Ctrl+Alt+F (Super+Option+F on macOS) to search in the current file
 
 For more information and configuration options:
 - Visit: https://github.com/ChenZhu-Xie/QuickLineNavigator

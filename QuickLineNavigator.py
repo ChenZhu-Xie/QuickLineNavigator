@@ -11,7 +11,7 @@ import platform
 import unicodedata
 from collections import defaultdict
 
-SETTINGS_FILE = "QuickLineNavigator.sublime-settings"
+SETTINGS_FILE = "Default.sublime-settings"
 SUPPORTED_ENCODINGS = ['utf-8', 'gbk', 'gb2312', 'utf-16', 'latin1', 'cp1252', 'shift_jis']
 DEFAULT_BLACKLIST = ['.exe', '.dll', '.so', '.dylib', '.a', '.lib', '.obj', '.o', '.bin',
                      '.class', '.jar', '.war', '.ear', '.pyc', '.pyo', '.pyd',

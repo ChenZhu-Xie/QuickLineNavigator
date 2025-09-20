@@ -2045,9 +2045,7 @@ class UIText:
             'no_results_in_scope': "No results found in {scope}",
             'filter_enabled': "Extension filters {status} ({mode})",
             'search_folder_set': "Search folder set to: {path}",
-            'search_folder_cleared': "Search folder cleared",
-            'highlights_cleared': "QuickLineNavigator: All highlights cleared",
-            'view_highlights_cleared': "QuickLineNavigator: Current view highlights cleared"
+            'search_folder_cleared': "Search folder cleared"
         }
         
         template = messages.get(message_type, message_type)
@@ -2058,7 +2056,7 @@ class UIText:
         return cls.SCOPE_NAMES.get(scope, scope).title()
 
 
-class QuickLineNavigatorCommand(BaseSearchCommand):
+class QlnCommand(BaseSearchCommand):
     """主搜索命令"""
     def run(self, scope="file"):
         self.scope = scope
@@ -2118,7 +2116,7 @@ class QuickLineNavigatorCommand(BaseSearchCommand):
         highlighter.highlight(self.window.active_view(), keywords)
 
 
-class QuickLineNavigatorOpenFilesCommand(BaseSearchCommand):
+class QlnOpenFilesCommand(BaseSearchCommand):
     """在打开文件中搜索的命令"""
     def run(self):
         self.scope = 'open_files'
@@ -2165,7 +2163,7 @@ class QuickLineNavigatorOpenFilesCommand(BaseSearchCommand):
             highlighter.highlight(view, keywords)
 
 
-class QuickLineNavigatorMenuCommand(sublime_plugin.WindowCommand):
+class QlnMenuCommand(sublime_plugin.WindowCommand):
     """菜单命令"""
     def run(self):
         menu_items = [
@@ -2179,26 +2177,20 @@ class QuickLineNavigatorMenuCommand(sublime_plugin.WindowCommand):
             ["📊 Show Filter Status　　　　　　　　 7 🎛️ Filter Controls"],
             
             ["📍 Set Search Folder　　　　　　　　  8 📁 Folder Settings"],
-            ["🗑️ Clear Search Folder　　　　　　　  9 📁 Folder Settings"],
-            
-            ["🧹 Clear All Highlights　　　　　　　  0 ✨ Highlight Management"],
-            ["🔦 Clear Current View Highlights　　　- ✨ Highlight Management"]
+            ["🗑️ Clear Search Folder　　　　　　　  9 📁 Folder Settings"]
         ]
         command_map = {
-            0: ("quick_line_navigator", {"scope": "file"}),
-            1: ("quick_line_navigator", {"scope": "project"}),
-            2: ("quick_line_navigator", {"scope": "folder"}),
-            3: ("quick_line_navigator_open_files", {}),
-            
-            4: ("toggle_extension_filters", {}),
-            5: ("toggle_extension_filters_temporary", {}),
-            6: ("show_filter_status", {}),
-            
-            7: ("set_search_folder", {}),
-            8: ("clear_search_folder", {}),
-            
-            9: ("clear_keyword_highlights", {}),
-            10: ("clear_current_view_highlights", {})
+            0: ("qln", {"scope": "file"}),
+            1: ("qln", {"scope": "project"}),
+            2: ("qln", {"scope": "folder"}),
+            3: ("qln_open_files", {}),
+
+            4: ("qln_toggle_extension_filters", {}),
+            5: ("qln_toggle_extension_filters_temporary", {}),
+            6: ("qln_show_filter_status", {}),
+
+            7: ("qln_set_search_folder", {}),
+            8: ("qln_clear_search_folder", {})
         }
         
         def on_select(index):
@@ -2218,7 +2210,7 @@ class QuickLineNavigatorMenuCommand(sublime_plugin.WindowCommand):
         )
 
 
-class ToggleExtensionFiltersCommand(sublime_plugin.WindowCommand):
+class QlnToggleExtensionFiltersCommand(sublime_plugin.WindowCommand):
     """切换扩展名过滤器命令"""
     def run(self):
         settings = Settings()
@@ -2234,7 +2226,7 @@ class ToggleExtensionFiltersCommand(sublime_plugin.WindowCommand):
             delattr(self.window, 'extension_filters_temp_override')
 
 
-class ToggleExtensionFiltersTemporaryCommand(sublime_plugin.WindowCommand):
+class QlnToggleExtensionFiltersTemporaryCommand(sublime_plugin.WindowCommand):
     """临时切换扩展名过滤器命令"""
     def run(self):
         settings = Settings()
@@ -2250,7 +2242,7 @@ class ToggleExtensionFiltersTemporaryCommand(sublime_plugin.WindowCommand):
         sublime.status_message(UIText.get_status_message('filter_enabled', status=status, mode='temporarily'))
 
 
-class ShowFilterStatusCommand(sublime_plugin.WindowCommand):
+class QlnShowFilterStatusCommand(sublime_plugin.WindowCommand):
     """显示过滤器状态命令"""
     def run(self):
         settings = Settings()
@@ -2308,7 +2300,7 @@ class ShowFilterStatusCommand(sublime_plugin.WindowCommand):
         return "Enabled" if scope_value else "Disabled"
 
 
-class SetSearchFolderCommand(sublime_plugin.WindowCommand):
+class QlnSetSearchFolderCommand(sublime_plugin.WindowCommand):
     """设置搜索文件夹命令"""
     def run(self):
         settings = Settings()
@@ -2368,7 +2360,7 @@ class SetSearchFolderCommand(sublime_plugin.WindowCommand):
         sublime.status_message("Search folder set to: {0}".format(path))
 
 
-class ClearSearchFolderCommand(sublime_plugin.WindowCommand):
+class QlnClearSearchFolderCommand(sublime_plugin.WindowCommand):
     """清除搜索文件夹命令"""
     def run(self):
         settings = Settings()
@@ -2384,31 +2376,6 @@ class ClearSearchFolderCommand(sublime_plugin.WindowCommand):
         ):
             settings.update_user_settings("search_folder_path", "")
             sublime.status_message(UIText.get_status_message('search_folder_cleared'))
-
-
-class ClearKeywordHighlightsCommand(sublime_plugin.WindowCommand):
-    """清除所有关键词高亮命令"""
-    def run(self):
-        highlighter.clear_all()
-        sublime.status_message(UIText.get_status_message('highlights_cleared'))
-
-
-class ClearCurrentViewHighlightsCommand(sublime_plugin.WindowCommand):
-    """清除当前视图高亮命令"""
-    def run(self):
-        view = self.window.active_view()
-        if view:
-            highlighter.clear(view)
-            sublime.status_message(UIText.get_status_message('view_highlights_cleared'))
-
-
-class ClearStoredKeywordsCommand(sublime_plugin.WindowCommand):
-    """清理所有储存的关键词"""
-    def run(self):
-        keyword_state_manager.stored_keywords = ""
-        keyword_state_manager.clear_active_panel()
-        sublime.status_message("All stored keywords cleared")
-
 
 class QuickLineNavigatorEventListener(sublime_plugin.EventListener):
     """事件监听器"""

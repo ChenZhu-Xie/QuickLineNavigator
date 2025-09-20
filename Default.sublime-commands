@@ -2,51 +2,51 @@
     // === Main Menu ===
     {
         "caption": "QuickLineNavigator: Show Menu",
-        "command": "quick_line_navigator_menu"
+        "command": "qln_menu"
     },
-    
+
     // === Main Search Features ===
     {
         "caption": "QuickLineNavigator: Search in Current File",
-        "command": "quick_line_navigator",
+        "command": "qln",
         "args": {"scope": "file"}
     },
     {
         "caption": "QuickLineNavigator: Search in Project",
-        "command": "quick_line_navigator",
+        "command": "qln",
         "args": {"scope": "project"}
     },
     {
         "caption": "QuickLineNavigator: Search in Folder",
-        "command": "quick_line_navigator",
+        "command": "qln",
         "args": {"scope": "folder"}
     },
     {
         "caption": "QuickLineNavigator: Search in Open Files",
-        "command": "quick_line_navigator_open_files"
+        "command": "qln_open_files"
     },
-    
+
     // === Filter Controls ===
     {
         "caption": "QuickLineNavigator: Toggle Extension Filters (Permanent)",
-        "command": "toggle_extension_filters"
+        "command": "qln_toggle_extension_filters"
     },
     {
         "caption": "QuickLineNavigator: Toggle Extension Filters (Temporary)",
-        "command": "toggle_extension_filters_temporary"
+        "command": "qln_toggle_extension_filters_temporary"
     },
     {
         "caption": "QuickLineNavigator: Show Filter Status",
-        "command": "show_filter_status"
+        "command": "qln_show_filter_status"
     },
-    
+
     // === Folder Settings ===
     {
         "caption": "QuickLineNavigator: Set Search Folder",
-        "command": "set_search_folder"
+        "command": "qln_set_search_folder"
     },
     {
         "caption": "QuickLineNavigator: Clear Search Folder",
-        "command": "clear_search_folder"
+        "command": "qln_clear_search_folder"
     },
 ]

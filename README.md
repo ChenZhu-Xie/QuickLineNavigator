@@ -22,12 +22,9 @@ https://github.com/user-attachments/assets/67b14314-0819-4472-95c2-8a4d6a2e9b4f
    - [Package Control Installation (Recommended)](#package-control-installation-recommended)
    - [Manual Installation](#manual-installation)
 5. [Plugin Directory Structure](#-plugin-directory-structure)
-6. [Setting Up ugrep Binary Files](#-setting-up-ugrep-binary-files)
-   - [Obtaining ugrep Binaries](#obtaining-ugrep-binaries)
-     - [Option 1: Download Pre-compiled Binaries (Recommended)](#option-1-download-pre-compiled-binaries-recommended)
-     - [Option 2: Install via Package Manager](#option-2-install-via-package-manager)
-     - [Option 3: Compile from Source](#option-3-compile-from-source)
-   - [Verifying ugrep Installation](#verifying-ugrep-installation)
+6. [Ugrep Inhancement](#-ugrep-inhancement)
+   - [Obtaining Ugrep](#obtaining-ugrep)
+   - [Without Ugrep](#without-ugrep)
 7. [Features](#-features)
    - [Multi-scope Search](#-multi-scope-search)
    - [Smart Keyword System](#-smart-keyword-system)
@@ -52,7 +49,7 @@ https://github.com/user-attachments/assets/67b14314-0819-4472-95c2-8a4d6a2e9b4f
 2. **Multiple Keywords**: Use spaces to separate multiple search terms
    - `` `phrase with backticks` ``: Alternative phrase syntax
 3. **Exact Phrases**: Use quotes for exact phrase matching: `` `error message` ``
-4. **Filter Toggle**: Quickly toggle filters with `Ctrl+Alt+E` when needed
+4. **Filter Toggle**: Quickly toggle filters with `Ctrl+Alt+R` when needed
 5. **Persistent Highlights**: Keywords remain highlighted **until** _cursor_ **move out of** _current line_
 
 ## ⌨️ Key Bindings
@@ -60,28 +57,28 @@ https://github.com/user-attachments/assets/67b14314-0819-4472-95c2-8a4d6a2e9b4f
 ### 🧭 Main Navigation
 | Command   | Windows/Linux  | Mac           | Description                       |
 | --------- | -------------- | ------------- | --------------------------------- |
-| Main Menu | `Ctrl+Alt+Q` | `Super+Option+Q` | Open QuickLineNavigator main menu |
+| Main Menu | `Alt+Shift+S` | `Alt+Shift+S` | Open QuickLineNavigator main menu |
 
 ### 🔍 Search Commands
 | Command | Windows/Linux | Mac | Description |
 |---------|---------------|-----|-------------|
-| Search Current File | `Ctrl+Alt+F` | `Super+Option+F` | Search keywords in the active file |
-| Search Open Files | `Shift+Alt+F` | `Shift+Option+F` | Search keywords in all open files |
-| Search Project | `Ctrl+Alt+R` | `Super+Option+R` | Search keywords in all project folders |
-| Search Folder | `Shift+Alt+R` | `Shift+Option+R` | Search keywords in specific folder |
+| Search Current File | `Ctrl+Alt+F` | `Ctrl+Alt+F` | Search keywords in the active file |
+| Search Open Files | `Alt+Shift+F` | `Alt+Shift+F` | Search keywords in all open files |
+| Search Project | `Ctrl+Alt+E` | `Ctrl+Alt+E` | Search keywords in all project folders |
+| Search Folder | `Alt+Shift+E` | `Alt+Shift+E` | Search keywords in specific folder |
 
 ### 🎛️ Filter Controls
 | Command                    | Windows/Linux      | Mac               | Description                                       |
 | -------------------------- | ------------------ | ----------------- | ------------------------------------------------- |
-| Toggle Extension Filters   | `Ctrl+Alt+Shift+E`       | `Super+Option+Shift+E`       | Enable/disable extension filters permanently      |
-| Toggle Filters Temporarily | `Ctrl+Alt+E` | `Super+Option+E` | Enable/disable extension filters for this session |
-| Show Filter Status         | `Ctrl+Alt+Shift+Q`       | `Super+Option+Shift+Q`       | Display current filter settings                   |
+| Toggle Filters Temporarily | `Ctrl+Alt+R` | `Ctrl+Alt+R` | Enable/disable extension filters for this session |
+| Toggle Extension Filters   | `Alt+Shift+R`       | `Alt+Shift+R`       | Enable/disable extension filters permanently      |
+| Show Filter Status         | `Ctrl+Alt+S`       | `Ctrl+Alt+S`       | Display current filter settings                   |
 
 ### 📁 Folder Settings
 | Command             | Windows/Linux      | Mac               | Description                           |
 | ------------------- | ------------------ | ----------------- | ------------------------------------- |
-| Set Search Folder   | `Ctrl+Alt+D`       | `Super+Option+D`       | Choose a specific folder for searches |
-| Clear Search Folder | `Ctrl+Alt+Shift+D` | `Super+Option+Shift+D` | Remove custom search folder           |
+| Set Search Folder   | `Alt+Shift+D`       | `Alt+Shift+D`       | Choose a specific folder for searches |
+| Clear Search Folder | `Ctrl+Alt+D` | `Ctrl+Alt+D` | Remove custom search folder           |
 
 ## 🎛️ File Extension Filtering
 
@@ -168,92 +165,17 @@ QuickLineNavigator/
     └── install.txt                       # Post-install message
 ```
 
-## 🔧 Setting Up ugrep Binary Files
+## 🔧 Ugrep Inhancement
 
 QuickLineNavigator uses [ugrep](https://github.com/Genivia/ugrep) for high-performance searching. While the plugin works without ugrep (falling back to Python search), having ugrep significantly improves search speed (for heavy lines and multiple keywords).
 
-### Obtaining ugrep Binaries
+### Obtaining Ugrep
 
-#### Option 1: Download Pre-compiled Binaries (Recommended)
+_How-to-install_ `ugrep`: https://github.com/Genivia/ugrep#install
 
-Visit the [ugrep releases page](https://github.com/Genivia/ugrep/releases) and download the appropriate binary for your platform:
+### Without Ugrep
 
-1. **Windows**
-   - Download `ugrep-win64.zip` or `ugrep-win32.zip`
-   - Extract `ugrep.exe` from the zip file
-   - Place it wherever, but remember to add the path of `ugrep.exe` to system `PATH`
-
-2. **macOS**
-   - **Intel Mac**: Download `ugrep-macosx-x64.zip`
-   - **Apple Silicon (M1/M2)**: Download `ugrep-macosx-arm64.zip`
-   - Extract the `ugrep` binary from the zip file
-   - Rename it to `ugrep_mac`
-   - Make it executable: `chmod +x bin/ugrep_mac`
-   - Place it wherever, but remember to add the path of `ugrep.exe` to system `PATH`
-
-3. **Linux**
-   - **x64**: Download `ugrep-linux-x64.zip`
-   - **ARM64**: Download `ugrep-linux-arm64.zip`
-   - Extract the `ugrep` binary from the zip file
-   - Make it executable: `chmod +x bin/ugrep`
-   - Place it wherever, but remember to add the path of `ugrep.exe` to system `PATH`
-
-#### Option 2: Install via Package Manager
-
-**macOS (Homebrew)**
-```bash
-brew install ugrep
-# Then copy to plugin directory
-cp $(which ugrep) /path/to/QuickLineNavigator/bin/ugrep_mac
-```
-
-**Ubuntu/Debian**
-```bash
-sudo apt update
-sudo apt install ugrep
-# Then copy to plugin directory
-cp $(which ugrep) /path/to/QuickLineNavigator/bin/ugrep
-```
-
-**Arch Linux**
-```bash
-sudo pacman -S ugrep
-# Then copy to plugin directory
-cp $(which ugrep) /path/to/QuickLineNavigator/bin/ugrep
-```
-
-#### Option 3: Compile from Source
-
-For systems without pre-compiled binaries:
-
-```bash
-# Download source code
-wget https://github.com/Genivia/ugrep/archive/refs/tags/v7.5.0.tar.gz
-tar -xzf v7.5.0.tar.gz
-cd ugrep-7.5.0
-
-# Configure and compile
-./configure
-make
-
-# Copy the binary to plugin directory
-# For Linux:
-cp src/ugrep /path/to/QuickLineNavigator/bin/ugrep
-# For macOS:
-cp src/ugrep /path/to/QuickLineNavigator/bin/ugrep_mac
-
-# Make executable
-chmod +x /path/to/QuickLineNavigator/bin/ugrep*
-```
-
-### Verifying ugrep Installation
-
-Open terminal/command prompt and run:
-```
-ugrep --version
-```
-
-The plugin will automatically detect and use the appropriate binary for your platform. If ugrep is not found, it will fall back to Python-based search, which is slower but fully functional.
+The plugin will automatically detect and use `the appropriate binary` for your platform. If `ugrep` is not found, it will **fall back to Python-based search**, which is slower but fully functional.
 
 ## 🚀 Features
 

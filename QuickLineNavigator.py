@@ -7,7 +7,6 @@ import threading
 import time
 import queue
 import subprocess
-import platform
 import unicodedata
 from collections import defaultdict
 
@@ -467,7 +466,7 @@ class UgrepExecutor:
     def _execute(self, cmd):
         try:
             kwargs = {}
-            if platform.system() == "Windows":
+            if sublime.platform() == "windows":
                 if hasattr(subprocess, 'CREATE_NO_WINDOW'):
                     kwargs['creationflags'] = subprocess.CREATE_NO_WINDOW
                 else:

@@ -1,36 +1,64 @@
 {
     // Default search scope: "file", "folder", "project", "open_files"
     "default_search_scope": "file",
-    
+
     // Show line numbers in search results
     "show_line_numbers": true,
-    
-    // Preview highlights while typing
+
+    // Preview highlights while typing in search input
     "preview_on_highlight": true,
-    
-    // Custom search folder path (empty for project folders)
+
+    // Custom search folder path (empty uses project folders)
     "search_folder_path": "",
-    
-    // Enable file extension filters
+
+    // Enable file extension filters globally
     "extension_filters": true,
-    
-    // Scope-specific filter settings (null = inherit global)
-    "extension_filters_file": false,
-    "extension_filters_folder": true,
-    "extension_filters_project": null,
-    "extension_filters_open_files": false,
-    
-    // Maximum display length for search results
+
+    // Scope-specific filter settings (null inherits global setting)
+    "extension_filters_file": false,      // Disabled for current file search
+    "extension_filters_folder": true,     // Enabled for folder search
+    "extension_filters_project": null,    // Inherits global setting
+    "extension_filters_open_files": false,// Disabled for open files search
+
+    // Maximum display width for search results (in characters)
     "max_display_length": 120,
-    
-    // Whitelisted file extensions (empty = all files)
+
+    // Whitelisted file extensions (empty array = all files)
+    // Examples: [".py", ".js", "txt", "md"]
     "file_extensions": [],
-    
-    // Blacklisted file extensions
+
+    // Blacklisted file extensions (without dots)
     "file_extensions_blacklist": [
-        "exe", "dll", "so", "dylib", "bin", "obj",
-        "jpg", "jpeg", "png", "gif", "bmp", "pdf",
-        "zip", "rar", "7z", "tar", "gz",
-        "sublime-workspace", "sublime-project"
+        // Executables and binaries
+        "exe", "dll", "so", "dylib", "a", "lib", "obj", "o", "bin",
+        "class", "jar", "war", "ear", "pyc", "pyo", "pyd",
+
+        // Databases
+        "db", "sqlite", "sqlite3", "dat",
+
+        // Images
+        "jpg", "jpeg", "png", "gif", "bmp", "tiff", "ico", "webp", "svg",
+
+        // Media files
+        "mp3", "mp4", "avi", "mov", "wmv", "flv", "mkv", "webm", "wav", "m4a",
+
+        // Documents
+        "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx",
+
+        // Archives
+        "zip", "rar", "7z", "tar", "gz", "bz2", "xz",
+        "iso", "img", "dmg", "deb", "rpm", "msi",
+
+        // Fonts
+        "ttf", "otf", "woff", "woff2", "eot",
+
+        // Sublime Text files
+        "sublime-workspace", "sublime-project",
+
+        // Version control
+        "git", "svn", "hg",
+
+        // Temporary files
+        "tmp", "cache", "log", "swp", "swo", "swn", "bak", "~"
     ]
 }

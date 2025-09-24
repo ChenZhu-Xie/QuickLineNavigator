@@ -1778,7 +1778,12 @@ class ResultsDisplayHandler:
             
             update_progress(total_results, force=True)
             
-            placeholder_text = ResultsDisplayHandler._get_placeholder_text(keywords, total_results)
+            placeholder_text = ResultsDisplayHandler._get_placeholder_text(
+                keywords,
+                total_results,
+                scope,
+                command_instance._get_context_info() if hasattr(command_instance, '_get_context_info') else None
+            )
             formatted_keywords = ResultsDisplayHandler._format_keywords(keywords)
             
             def show_panel():
@@ -1867,11 +1872,41 @@ class ResultsDisplayHandler:
         return ' '.join(TextUtils.format_keyword_for_input(kw) for kw in keywords)
     
     @staticmethod
-    def _get_placeholder_text(keywords, results_count):
+    def _get_placeholder_text(keywords, results_count, scope=None, context_info=None):
         """获取占位符文本"""
+        scope_prefix = ""
+        if scope == "file" and context_info:
+            filename = os.path.basename(context_info)
+            scope_prefix = '"{}"'.format(filename)
+        elif scope == "project" and context_info:
+            if isinstance(context_info, list) and context_info:
+                project_name = os.path.basename(context_info[0])
+                if len(context_info) > 1:
+                    scope_prefix = 'Project "{}" (+{} folders)'.format(project_name, len(context_info) - 1)
+                else:
+                    scope_prefix = 'Project "{}"'.format(project_name)
+            else:
+                scope_prefix = "Project"
+        elif scope == "folder" and context_info:
+            if isinstance(context_info, list) and context_info:
+                folder_name = os.path.basename(context_info[0])
+                if len(context_info) > 1:
+                    scope_prefix = 'Folder "{}" (+{} folders)'.format(folder_name, len(context_info) - 1)
+                else:
+                    scope_prefix = 'Folder "{}"'.format(folder_name)
+            else:
+                scope_prefix = "Folder"
+        elif scope == "open_files":
+            if context_info and isinstance(context_info, int):
+                scope_prefix = "Open files ({})".format(context_info)
+            else:
+                scope_prefix = "Open files"
+        else:
+            scope_prefix = UIText.get_scope_display_name(scope) if scope else "Search"
+
         if not keywords:
-            return "All lines - {} lines found".format(results_count)
-        
+            return "{}: All lines - {} lines found".format(scope_prefix, results_count)
+
         display_keywords = keywords[:5]
         placeholder_keywords = [
             '{}{}'.format(
@@ -1880,11 +1915,12 @@ class ResultsDisplayHandler:
             )
             for i, kw in enumerate(display_keywords)
         ]
-        
+
         if len(keywords) > 5:
             placeholder_keywords.append("... +{} more".format(len(keywords) - 5))
-        
-        return "Keywords: {} - {} lines found".format(
+
+        return "{}: {} - {} lines found".format(
+            scope_prefix,
             ' '.join(placeholder_keywords), 
             results_count
         )
@@ -2099,6 +2135,13 @@ class QlnCommand(BaseSearchCommand):
         
         if self.process_search_done(input_text, results):
             self._show_results(results, keywords)
+
+    def _get_context_info(self):
+        if self.scope == "file":
+            return getattr(self, 'file_path', '')
+        elif self.scope in ["folder", "project"]:
+            return getattr(self, 'folders', [])
+        return None
     
     def _search_file(self, keywords):
         search = SearchEngine(self.settings, "file", self.window)
@@ -2128,6 +2171,10 @@ class QlnOpenFilesCommand(BaseSearchCommand):
         
         self.run_with_input_handling()
     
+    def _get_context_info(self):
+        """获取上下文信息用于显示"""
+        return len(getattr(self, 'open_files', []))
+
     def _get_open_files(self):
         """获取所有打开的文件路径"""
         open_files = []

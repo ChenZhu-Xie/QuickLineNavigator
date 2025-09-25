@@ -324,20 +324,24 @@ Access settings via `Preferences` → `Package Settings` → `QuickLineNavigator
 This plugin was inspired by and built upon the ideas from several excellent projects and resources:
 
 ### Plugin Inspirations
-- **[Fuzzy Search Plugin Discussion](https://forum.sublimetext.com/t/fuzzy-search-jump-to-any-line-via-quick-panel-plugin/45947)** - The original concept discussion that sparked the idea for fuzzy searches enhanced quick line navigation in Sublime Text.
-
-- **[SearchInProject](https://github.com/leonid-shevtsov/SearchInProject_SublimeText)** by Leonid Shevtsov - An excellent implementation of project-wide search that influenced our multi-scope search design.
-
-- **[StickySearch](https://github.com/vim-zz/StickySearch)** by vim-zz - A brilliant plugin that inspired our persistent keyword highlighting feature, showing how visual feedback can enhance search workflows.
+- **[Fuzzy Search Plugin Discussion](https://forum.sublimetext.com/t/fuzzy-search-jump-to-any-line-via-quick-panel-plugin/45947)** + **[SimpleFuzzy](https://github.com/ukyouz/SublimeText-SimpleFuzzy)**
+  - The original concept discussion & plugin that sparked the idea for fuzzy searches enhanced quick line navigation in Sublime Text.
+- **[SearchInProject](https://github.com/leonid-shevtsov/SearchInProject_SublimeText)** by Leonid Shevtsov
+  - An excellent implementation of project-wide search that influenced our multi-scope search design.
+- **[StickySearch](https://github.com/vim-zz/StickySearch)** by vim-zz
+  - A brilliant plugin that inspired our persistent keyword highlighting feature, showing how visual feedback can enhance search workflows.
 
 ### Conceptual Alignment
-- **[Jeff Huber's Vision at Chroma](https://youtu.be/pIbIZ_Bxl_g?si=ut13j65qVwYRg0NR)** - This plugin shares the same philosophy of `first matching for pre filtering most irrelevant content, and second matching for further scoring, sorting, and retrieval of the remaining small portion`, as beautifully articulated (in a different way) by Jeff Huber.
+- **[Jeff Huber's Vision at Chroma](https://youtu.be/pIbIZ_Bxl_g?si=ut13j65qVwYRg0NR)**
+  - This plugin shares the same philosophy of `first matching for pre filtering most irrelevant content, and second matching for further scoring, sorting, and retrieval of the remaining small portion`, as beautifully articulated (in a different way) by Jeff Huber.
 
 ### Development Tools
-- **[Pieces Copilot](https://pieces.app/)** - An invaluable AI-powered development assistant that helped streamline the coding process and improve code quality throughout this project.
+- **[Pieces Copilot](https://pieces.app/)**
+  - An invaluable AI-powered development assistant that helped streamline the coding process and improve code quality throughout this project.
 
 ### Special Thanks
-- [ugrep](https://github.com/Genivia/ugrep) by Robert van Engelen _et al._ for the blazing-fast search engine which supports `--and`
+- [ugrep](https://github.com/Genivia/ugrep) by Robert van Engelen _et al._
+  - for the blazing-fast search engine which supports `--and`
 - All contributors and users who help make sublime searching experience better
 
 ## 📝 License

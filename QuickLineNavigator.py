@@ -1442,41 +1442,6 @@ class BaseSearchCommand(sublime_plugin.WindowCommand):
             command_instance=self
         )
     
-    def _highlight_segment(self, view, item, line_number):
-        """高亮显示段落 - 优化版"""
-        if 'segment_start' not in item or 'segment_end' not in item:
-            return
-        
-        if self._pending_highlight:
-            self._pending_highlight = None
-        
-        current_file = item.get('file', '')
-        current_line_number = item.get('line_number', -1)
-        new_line_key = (current_file, current_line_number)
-        
-        if not hasattr(self, '_last_highlighted_line'):
-            self._last_highlighted_line = None
-        
-        is_new_line = self._last_highlighted_line != new_line_key
-        
-        if self.current_segment_key and self.highlighted_view_id:
-            self._clear_previous_highlights(is_new_line)
-        
-        self._apply_new_highlight(view, item, line_number, is_new_line)
-        
-        if is_new_line:
-            self._last_highlighted_line = new_line_key
-    
-    def _clear_previous_highlights(self, clear_border=False):
-        """清除之前的高亮"""
-        for window in sublime.windows():
-            for v in window.views():
-                if v.id() == self.highlighted_view_id:
-                    v.erase_regions(self.current_segment_key)
-                    if clear_border:
-                        v.erase_regions(self.current_segment_key + "_border")
-                    break
-    
     def _apply_new_highlight(self, view, item, line_number, show_border):
         """应用新的高亮 - 重构版"""
         cache_key = (view.id(), line_number)
@@ -1495,7 +1460,6 @@ class BaseSearchCommand(sublime_plugin.WindowCommand):
                     del self._line_cache[key]
         
         strip_offset = item.get('strip_offset', 0)
-        
         is_single_segment = item.get('is_single_segment', False)
         
         if is_single_segment:
@@ -1563,7 +1527,6 @@ class BaseSearchCommand(sublime_plugin.WindowCommand):
         sublime.set_timeout(clear_border, 500)
 
     def _highlight_segment(self, view, item, line_number):
-        """高亮显示段落 - 重构版"""
         if not view or not view.is_valid():
             return
         

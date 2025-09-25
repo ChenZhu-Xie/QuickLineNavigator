@@ -168,7 +168,6 @@ class Settings:
         self.set(key, value)
 
 
-
 class FileFilter:
     """文件过滤器"""
     def __init__(self, settings, scope, window=None):
@@ -242,6 +241,66 @@ class FileFilter:
             return True
         
         return ext in whitelist_set
+
+
+class FileScanEstimator:
+    """
+    估算会被扫描的文件数：仅按扩展名过滤，不读取文件内容。
+    返回 (count, approx)，approx=True 表示超时或达上限，结果为近似值。
+    内置一个简易缓存，避免频繁重复统计。
+    """
+    CACHE_TTL = 15  # 秒
+    _cache = {}     # key -> (timestamp, (count, approx))
+
+    @classmethod
+    def _make_cache_key(cls, folders, file_filter):
+        try:
+            folders_key = tuple(sorted(folders))
+        except Exception:
+            folders_key = tuple(folders) if folders else tuple()
+        wl = tuple(sorted((file_filter.whitelist or [])))
+        bl = tuple(sorted((file_filter.blacklist or [])))
+        return (folders_key, bool(file_filter.enabled), wl, bl)
+
+    @classmethod
+    def count_filtered_files(cls, folders, settings, scope, window=None, timeout=0.8, max_files=200000, cache_ttl=None):
+        if not folders:
+            return 0, False
+
+        file_filter = FileFilter(settings, scope, window)
+        key = cls._make_cache_key(folders, file_filter)
+
+        now = time.time()
+        ttl = cls.CACHE_TTL if cache_ttl is None else cache_ttl
+        if ttl and key in cls._cache:
+            ts, value = cls._cache[key]
+            if (now - ts) <= ttl:
+                return value
+
+        start = now
+        count = 0
+        approx = False
+
+        try:
+            for root in folders:
+                if not root or not os.path.isdir(root):
+                    continue
+                for dirpath, dirnames, filenames in os.walk(root):
+                    for fname in filenames:
+                        fpath = os.path.join(dirpath, fname)
+                        if file_filter.should_process(fpath):
+                            count += 1
+                        if count >= max_files or (time.time() - start) > timeout:
+                            approx = True
+                            raise StopIteration
+        except StopIteration:
+            pass
+        except Exception:
+            approx = True
+
+        if ttl:
+            cls._cache[key] = (time.time(), (count, approx))
+        return count, approx
 
 
 class TextUtils:
@@ -421,10 +480,13 @@ class UgrepExecutor:
     
     def _add_keywords(self, cmd, keywords):
         keywords = [kw for kw in keywords if kw]
+        if not keywords:
+            return
         if len(keywords) == 1:
             cmd.append(keywords[0])
         else:
-            for kw in keywords:
+            cmd.extend(["-e", keywords[0]])
+            for kw in keywords[1:]:
                 cmd.extend(["--and", "-e", kw])
     
     def _apply_filters(self, cmd, file_filter):
@@ -510,7 +572,7 @@ class UgrepExecutor:
             if not line:
                 continue
             
-            match = self.output_pattern.match(line) or self.windows_pattern.match(line)
+            match = self.windows_pattern.match(line) or self.output_pattern.match(line)
             if match:
                 results.append({
                     'file': match.group(1),
@@ -725,10 +787,10 @@ class SearchEngine:
         
         return results
     
-    def _print_stats(self, results_count, paths, keywords, original, duration):
+    def _print_stats(self, results_count, paths, keywords, original, duration, files_with_results=None):
         scope_name = UIText.get_scope_display_name(self.scope)
         print("🎯 {0} Search Complete".format(scope_name))
-        
+
         if keywords:
             keyword_display = []
             for i, kw in enumerate(keywords):
@@ -737,13 +799,31 @@ class SearchEngine:
             print("  📍 Keywords: {0}".format(" ".join(keyword_display)))
         else:
             print("  📍 Keywords: {0}".format(original or "All lines"))
-        
+
         if self.scope in ["folder", "project"]:
             print("  📁 Folders: {0}".format(len(paths)))
+            try:
+                filtered_count, approx = FileScanEstimator.count_filtered_files(
+                    paths, self.settings, self.scope, self.window, timeout=0.8, max_files=200000
+                )
+                filtered_str = "~{}".format(filtered_count) if approx else str(filtered_count)
+                matched_str = str(files_with_results if files_with_results is not None else 0)
+                print("  📊 Files: {0} of {1} filtered".format(matched_str, filtered_str))
+            except Exception:
+                if files_with_results is not None:
+                    print("  📊 Files: {0}".format(files_with_results))
+                else:
+                    print("  📊 Files: N/A")
+
         elif self.scope == "file":
             print("  📄 File: {0}".format(os.path.basename(paths[0]) if paths else "Unknown"))
+
         elif self.scope == "open_files":
-            print("  📊 Files: {0}".format(len(paths)))
+            total_open = len(paths)
+            if files_with_results is not None and files_with_results != total_open:
+                print("  📊 Files: {0} of {1} open".format(files_with_results, total_open))
+            else:
+                print("  📊 Files: {0}".format(total_open))
         
         print("  📝 Results: {0} lines".format(results_count))
         print("  ⏱️ Time: {0:.3f}s".format(duration))
@@ -752,82 +832,76 @@ class SearchEngine:
 class Highlighter:
     """高亮管理器"""
     def __init__(self):
-        self.keys = set()
         self.key_base = "QuickLineNavKeyword"
-        self.views = set()
+        self.keys_by_view = defaultdict(set)
         self.cache = {}
-    
+
     def highlight(self, view, keywords):
         if not view or not view.is_valid():
             return
-        
+
         keywords = [kw for kw in keywords if kw and kw.strip()]
         if not keywords:
             self.clear(view)
             return
-        
+
         view_id = view.id()
-        
         cache_key = tuple(keywords)
         if self.cache.get(view_id) == cache_key:
             return
-        
+
         if view.is_loading() or view.size() == 0:
             sublime.set_timeout(lambda: self.highlight(view, keywords), 100)
             return
-        
+
         self.clear(view)
-        
+
         for i, keyword in enumerate(keywords):
             if not keyword:
                 continue
-            
             try:
                 regions = view.find_all(keyword, sublime.IGNORECASE | sublime.LITERAL)
-                
                 if regions:
-                    key = "{0}_{1}_{2}".format(self.key_base, view_id, i)
-                    self.keys.add(key)
-                    
+                    key = "{key}_{index}".format(key=self.key_base, index=i)
                     scope = HIGHLIGHT_SCOPES[i % len(HIGHLIGHT_SCOPES)]
                     icon = HIGHLIGHT_ICONS[i % len(HIGHLIGHT_ICONS)]
-                    
-                    view.add_regions(key, regions, scope, icon, sublime.PERSISTENT | sublime.DRAW_NO_OUTLINE)
+                    view.add_regions(
+                        key, regions, scope, icon, sublime.DRAW_NO_OUTLINE
+                    )
+                    self.keys_by_view[view_id].add(key)
             except Exception as e:
                 print("Error highlighting keyword '{}': {}".format(keyword, e))
                 continue
-        
-        if self.keys:
-            self.views.add(view_id)
+
+        if self.keys_by_view.get(view_id):
             self.cache[view_id] = cache_key
-    
+
     def clear(self, view):
         if not view or not view.is_valid():
             return
-        
         view_id = view.id()
-        self.cache.pop(view_id, None)
-        
-        keys_to_remove = {key for key in self.keys if "_{0}_".format(view_id) in key}
-        
-        for key in keys_to_remove:
+        for key in list(self.keys_by_view.get(view_id, [])):
             try:
                 view.erase_regions(key)
             except:
                 pass
-        
-        self.keys.difference_update(keys_to_remove)
-        self.views.discard(view_id)
-    
+        self.keys_by_view.pop(view_id, None)
+        self.cache.pop(view_id, None)
+
     def clear_all(self):
         for window in sublime.windows():
-            for view in window.views():
-                if view.id() in self.views:
-                    self.clear(view)
-        
-        self.keys.clear()
-        self.views.clear()
+            for v in window.views():
+                self.clear(v)
         self.cache.clear()
+
+    def sweep_view(self, view, max_keys=128):
+        if not view or not view.is_valid():
+            return
+        for i in range(max_keys):
+            try:
+                view.erase_regions("{key}_{index}".format(key=self.key_base, index=i))
+            except:
+                pass
 
 
 class DisplayFormatter:
@@ -857,45 +931,139 @@ class DisplayFormatter:
         self.current_formatted = 0
     
     def format_results(self, results, keywords, scope):
-        """批量格式化结果 - 超优化版"""
+        """批量格式化结果 - 修复显示索引问题"""
         if not results:
             return [], []
-            
+
         self._prepare_keyword_patterns(keywords)
-        
+
         if len(self._format_cache) > 5000:
             self.clear_caches()
-        
+
         formatted = []
         expanded_results = []
-        
+
         keyword_info = self._prepare_keyword_info(keywords)
-        
+
+        display_index = 0
+
         for i, item in enumerate(results):
             cache_key = (
-                item.get('file', ''), 
+                item.get('file', ''),
                 item.get('line_number', -1),
                 hash(item['line'][:50]) if len(item['line']) > 50 else item['line']
             )
-            
+
             if cache_key in self._format_cache:
                 cached = self._format_cache[cache_key]
-                formatted.extend(cached['formatted'])
-                expanded_results.extend(cached['expanded'])
+                updated_formatted = []
+                updated_expanded = []
+
+                for j, (fmt_item, exp_item) in enumerate(zip(cached['formatted'], cached['expanded'])):
+                    current_display_index = display_index + j
+                    updated_sub_line = self._format_sub_line_simple(
+                        exp_item, current_display_index, keyword_info, scope,
+                        exp_item.get('segment_index', 0),
+                        exp_item.get('total_segments', 1)
+                    )
+                    updated_formatted.append([fmt_item[0], updated_sub_line])
+                    updated_expanded.append(exp_item)
+
+                # 更新显示索引
+                display_index += len(cached['formatted'])
+
+                formatted.extend(updated_formatted)
+                expanded_results.extend(updated_expanded)
                 continue
-            
-            fmt_items, exp_items = self._format_single_fast(item, i, keyword_info, scope)
-            
-            if len(self._format_cache) < 5000:  
+
+            fmt_items, exp_items = self._format_single_fast(item, display_index, keyword_info, scope)
+
+            display_index += len(fmt_items)
+
+            if len(self._format_cache) < 5000:
+                original_formatted = []
+                for fmt_item in fmt_items:
+                    original_formatted.append([fmt_item[0], fmt_item[1]])
+
                 self._format_cache[cache_key] = {
-                    'formatted': fmt_items,
+                    'formatted': original_formatted,
                     'expanded': exp_items
                 }
-            
+
             formatted.extend(fmt_items)
             expanded_results.extend(exp_items)
-        
+
         return formatted, expanded_results
+
+    def _format_single_fast(self, item, start_display_index, keyword_info, scope):
+        """快速格式化单个结果 - 修复显示索引"""
+        line = item['line']
+        line_stripped = line.strip()
+        strip_offset = len(line) - len(line.lstrip())
+
+        if not line_stripped:
+            return [], []
+
+        formatted_items = []
+        expanded_items = []
+
+        line_with_emojis = self._apply_emoji_highlights_fast(line_stripped, keyword_info)
+        line_width = self._get_cached_width(line_with_emojis)
+
+        if line_width <= self.max_length:
+            sub_line = self._format_sub_line_simple(item, start_display_index, keyword_info, scope)
+            formatted_items.append([line_with_emojis, sub_line])
+
+            expanded_item = item.copy()
+            expanded_item['strip_offset'] = strip_offset
+            expanded_item['is_single_segment'] = True
+            expanded_items.append(expanded_item)
+        else:
+            segments = self._smart_split_original(line_stripped, keyword_info)
+
+            for seg_index, (seg_start, seg_end) in enumerate(segments):
+                seg_text = line_stripped[seg_start:seg_end]
+                seg_with_emojis = self._apply_emoji_highlights_fast(seg_text, keyword_info)
+
+                current_display_index = start_display_index + seg_index
+                sub_line = self._format_sub_line_simple(
+                    item, current_display_index, keyword_info, scope, seg_index, len(segments)
+                )
+                formatted_items.append([seg_with_emojis, sub_line])
+
+                expanded_item = item.copy()
+                expanded_item.update({
+                    'segment_start': seg_start,
+                    'segment_end': seg_end,
+                    'segment_index': seg_index,
+                    'total_segments': len(segments),
+                    'strip_offset': strip_offset,
+                    'is_single_segment': False
+                })
+                expanded_items.append(expanded_item)
+
+        return formatted_items, expanded_items
+
+    def _format_sub_line_simple(self, item, display_index, keyword_info, scope, segment_index=0, total_segments=1):
+        """简化的副行格式化 - 修复显示索引"""
+        parts = []
+
+        if self.show_line_numbers and 'line_number' in item:
+            parts.append(str(item['line_number']))
+
+        parts.append("⚡ {QLN_N}")
+
+        if total_segments > 1:
+            parts.append("📍 {}/{}".format(segment_index + 1, total_segments))
+
+        if 'file' in item and scope != 'file':
+            filename = os.path.basename(item['file'])
+            if len(filename) > 50:
+                filename = filename[:47] + "..."
+            parts.append("📄 {}".format(filename))
+
+        return "☲ " + " ".join(parts)
+
     
     def _prepare_keyword_patterns(self, keywords):
         """预编译关键词正则表达式"""
@@ -921,55 +1089,7 @@ class DisplayFormatter:
             self._emoji_cache[kw.lower()] = emoji
         
         return info
-    
-    def _format_single_fast(self, item, index, keyword_info, scope):
-        """快速格式化单个结果"""
-        line = item['line']
-        line_stripped = line.strip()
-        strip_offset = len(line) - len(line.lstrip())
-        
-        if not line_stripped:
-            return [], []
-        
-        formatted_items = []
-        expanded_items = []
-        
-        line_with_emojis = self._apply_emoji_highlights_fast(line_stripped, keyword_info)
-        line_width = self._get_cached_width(line_with_emojis)
-        
-        if line_width <= self.max_length:
-            sub_line = self._format_sub_line_simple(item, index, scope)
-            formatted_items.append([line_with_emojis, sub_line])
-            
-            expanded_item = item.copy()
-            expanded_item['strip_offset'] = strip_offset
-            expanded_item['is_single_segment'] = True  
-            expanded_items.append(expanded_item)
-        else:
-            segments = self._smart_split_original(line_stripped, keyword_info)
-            
-            for seg_index, (seg_start, seg_end) in enumerate(segments):
-                seg_text = line_stripped[seg_start:seg_end]
-                seg_with_emojis = self._apply_emoji_highlights_fast(seg_text, keyword_info)
-                
-                sub_line = self._format_sub_line_simple(
-                    item, index, scope, seg_index, len(segments)
-                )
-                formatted_items.append([seg_with_emojis, sub_line])
-                
-                expanded_item = item.copy()
-                expanded_item.update({
-                    'segment_start': seg_start,
-                    'segment_end': seg_end,
-                    'segment_index': seg_index,
-                    'total_segments': len(segments),
-                    'strip_offset': strip_offset,
-                    'is_single_segment': False  
-                })
-                expanded_items.append(expanded_item)
-        
-        return formatted_items, expanded_items
-    
+
     def _apply_emoji_highlights_fast(self, text, keyword_info):
         """快速应用emoji高亮"""
         if not keyword_info['keywords']:
@@ -1160,26 +1280,6 @@ class DisplayFormatter:
             0x30A0 <= code_point <= 0x30FF or  
             0xAC00 <= code_point <= 0xD7AF     
         )
-    
-    def _format_sub_line_simple(self, item, index, scope, segment_index=0, total_segments=1):
-        """简化的副行格式化"""
-        parts = []
-        
-        if self.show_line_numbers and 'line_number' in item:
-            parts.append(str(item['line_number']))
-        
-        parts.append("⚡ {}".format(index + 1))
-        
-        if total_segments > 1:
-            parts.append("📍 {}/{}".format(segment_index + 1, total_segments))
-        
-        if 'file' in item and scope != 'file':
-            filename = os.path.basename(item['file'])
-            if len(filename) > 50:
-                filename = filename[:47] + "..."
-            parts.append("📄 {}".format(filename))
-        
-        return "☲ " + " ".join(parts)
     
     def clear_caches(self):
         """清理所有缓存"""
@@ -1777,7 +1877,14 @@ class ResultsDisplayHandler:
                     all_expanded.append(results[i] if i < len(results) else {})
             
             update_progress(total_results, force=True)
-            
+
+            for idx, row in enumerate(all_items, 1):
+                try:
+                    # row: [left_text, right_text]
+                    row[1] = row[1].replace("{QLN_N}", str(idx))
+                except Exception:
+                    pass
+
             placeholder_text = ResultsDisplayHandler._get_placeholder_text(
                 keywords,
                 total_results,
@@ -1873,11 +1980,13 @@ class ResultsDisplayHandler:
     
     @staticmethod
     def _get_placeholder_text(keywords, results_count, scope=None, context_info=None):
-        """获取占位符文本"""
+        """获取占位符文本，加入 scope 信息与（folder 下）过滤后文件计数"""
+        # 构建作用域前缀
         scope_prefix = ""
         if scope == "file" and context_info:
             filename = os.path.basename(context_info)
             scope_prefix = '"{}"'.format(filename)
+
         elif scope == "project" and context_info:
             if isinstance(context_info, list) and context_info:
                 project_name = os.path.basename(context_info[0])
@@ -1885,10 +1994,33 @@ class ResultsDisplayHandler:
                     scope_prefix = 'Project "{}" (+{} folders)'.format(project_name, len(context_info) - 1)
                 else:
                     scope_prefix = 'Project "{}"'.format(project_name)
+            elif isinstance(context_info, dict):
+                folders = context_info.get('folders') or []
+                project_name = os.path.basename(folders[0]) if folders else "Project"
+                if len(folders) > 1:
+                    scope_prefix = 'Project "{}" (+{} folders)'.format(project_name, len(folders) - 1)
+                else:
+                    scope_prefix = 'Project "{}"'.format(project_name)
             else:
                 scope_prefix = "Project"
+
         elif scope == "folder" and context_info:
-            if isinstance(context_info, list) and context_info:
+            # 支持 dict：{'folders': [...], 'files_count': int, 'files_count_approx': bool}
+            if isinstance(context_info, dict):
+                folders = context_info.get('folders') or []
+                base_name = os.path.basename(folders[0]) if folders else "Folder"
+                extras = []
+                if len(folders) > 1:
+                    extras.append("+{} folders".format(len(folders) - 1))
+                files_count = context_info.get('files_count', None)
+                approx = bool(context_info.get('files_count_approx', False))
+                if files_count is not None:
+                    count_str = "~{}".format(files_count) if approx else str(files_count)
+                    extras.append("+{} files".format(count_str))
+                scope_prefix = 'Folder "{}"'.format(base_name)
+                if extras:
+                    scope_prefix += " ({})".format(", ".join(extras))
+            elif isinstance(context_info, list) and context_info:
                 folder_name = os.path.basename(context_info[0])
                 if len(context_info) > 1:
                     scope_prefix = 'Folder "{}" (+{} folders)'.format(folder_name, len(context_info) - 1)
@@ -1896,17 +2028,21 @@ class ResultsDisplayHandler:
                     scope_prefix = 'Folder "{}"'.format(folder_name)
             else:
                 scope_prefix = "Folder"
+
         elif scope == "open_files":
             if context_info and isinstance(context_info, int):
                 scope_prefix = "Open files ({})".format(context_info)
             else:
                 scope_prefix = "Open files"
+
         else:
             scope_prefix = UIText.get_scope_display_name(scope) if scope else "Search"
 
+        # 无关键词时
         if not keywords:
             return "{}: All lines - {} lines found".format(scope_prefix, results_count)
 
+        # 构建关键词显示
         display_keywords = keywords[:5]
         placeholder_keywords = [
             '{}{}'.format(
@@ -1921,7 +2057,7 @@ class ResultsDisplayHandler:
 
         return "{}: {} - {} lines found".format(
             scope_prefix,
-            ' '.join(placeholder_keywords), 
+            ' '.join(placeholder_keywords),
             results_count
         )
     
@@ -2137,10 +2273,26 @@ class QlnCommand(BaseSearchCommand):
             self._show_results(results, keywords)
 
     def _get_context_info(self):
+        """为占位文本提供上下文信息"""
         if self.scope == "file":
             return getattr(self, 'file_path', '')
-        elif self.scope in ["folder", "project"]:
-            return getattr(self, 'folders', [])
+        elif self.scope == "folder":
+            folders = getattr(self, 'folders', [])
+            files_count, approx = FileScanEstimator.count_filtered_files(
+                folders, self.settings, self.scope, self.window, timeout=0.8, max_files=200000
+            )
+            return {
+                'folders': folders,
+                'files_count': files_count,
+                'files_count_approx': approx
+            }
+        elif self.scope == "project":
+            # 项目下如果也想显示“过滤后文件数”，同样可以启用：
+            files_count, approx = FileScanEstimator.count_filtered_files(
+                getattr(self, 'folders', []), self.settings, self.scope, self.window
+            )
+            return {'folders': getattr(self, 'folders', []), 'files_count': files_count, 'files_count_approx': approx}
+            # return {'folders': getattr(self, 'folders', [])}
         return None
     
     def _search_file(self, keywords):
@@ -2430,6 +2582,9 @@ class QuickLineNavigatorEventListener(sublime_plugin.EventListener):
         self.last_row = {}
         self.border_timers = {}
     
+    def on_load_async(self, view):
+        highlighter.sweep_view(view, max_keys=128)
+
     def on_selection_modified(self, view):
         if not view or not view.is_valid():
             return
@@ -2492,6 +2647,13 @@ def plugin_loaded():
                 json.dump(default_settings, f, indent=4, ensure_ascii=False)
         except:
             pass
+
+    try:
+        for window in sublime.windows():
+            for v in window.views():
+                highlighter.sweep_view(v, max_keys=128)
+    except:
+        pass
 
 
 def plugin_unloaded():

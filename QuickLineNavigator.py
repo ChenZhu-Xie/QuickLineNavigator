@@ -650,6 +650,11 @@ class SearchEngine:
             self._show_ugrep_installation_info()
             SearchEngine._ugrep_warning_shown = True
 
+    def _line_matches(self, display_text, keywords):
+        if not keywords:
+            return True
+        return all(re.search(re.escape(kw), display_text, re.IGNORECASE) for kw in keywords)
+
     def _show_ugrep_installation_info(self):
         def show_dialog():
             message = (
@@ -711,9 +716,8 @@ class SearchEngine:
             if not display_text:
                 continue
             
-            if keywords:
-                if not all(re.search(re.escape(kw), display_text, re.IGNORECASE) for kw in keywords):
-                    continue
+            if not self._line_matches(display_text, keywords):
+                continue
             
             line_num = view.rowcol(region.begin())[0] + 1
             results.append({
@@ -771,9 +775,8 @@ class SearchEngine:
                     if not display_text:
                         continue
                     
-                    if keywords:
-                        if not all(re.search(re.escape(kw), display_text, re.IGNORECASE) for kw in keywords):
-                            continue
+                    if not self._line_matches(display_text, keywords):
+                        continue
                     
                     results.append({
                         'file': file_path,

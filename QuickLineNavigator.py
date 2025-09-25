@@ -2405,7 +2405,6 @@ class QlnToggleExtensionFiltersTemporaryCommand(sublime_plugin.WindowCommand):
         status = "enabled ✓" if not current else "disabled ✗"
         sublime.status_message(UIText.get_status_message('filter_enabled', status=status, mode='temporarily'))
 
-
 class QlnShowFilterStatusCommand(sublime_plugin.WindowCommand):
     """显示过滤器状态命令"""
     def run(self):

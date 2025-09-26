@@ -353,6 +353,7 @@ MIT License - see [LICENSE](LICENSE) file for details
 Contributions are welcome! Please feel free to submit a Pull Request. Focus areas:
 - ~~Currently, immediately closing Sublime or switching projects will cause the highlight to be unable to be eliminated, when the 4 main search functions of the plugin are running.~~
   - ~~I have tried cleaning by view in ST 4 instead of viewid in ST 3, but it seems to have no effect.~~
+- Performance issue
 - More mature whole-subline segmentation algorithms for more common Chinese and English languages, as well as for staccato sentences in programming languages.
 - More appropriate interaction logic? (I think it seems to have been optimized quite well now)
 <!-- - More beautiful/logical color & emoji highlight? -->

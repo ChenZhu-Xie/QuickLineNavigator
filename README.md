@@ -351,22 +351,27 @@ MIT License - see [LICENSE](LICENSE) file for details
 ## 🤝 Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request. Focus areas:
-- Highlight bugs
-  - Some highlights cannot be cleared (such as forcibly switching search scope, switching projects, closing files, or closing the Sublime window during the search process).
-  - Some highlights are not applied to the corresponding keywords in time.
-- Keyword are not retained.
-  - ~~Before executing the precise search, switch the scope.~~
-  - After the precise retrieval is executed, switch the scope in the quick panel.
-  - After the precise retrieval is executed, switch the scope outside the quick panel.
-- ~~Currently, immediately closing Sublime or switching projects will cause the highlight to be unable to be eliminated, when the 4 main search functions of the plugin are running.~~
-  - ~~I have tried cleaning by view in ST 4 instead of viewid in ST 3, but it seems to have no effect.~~
+
 - fuzzy search the whole line like **[SimpleFuzzy](https://github.com/ukyouz/SublimeText-SimpleFuzzy)**, while jump to the specific subline?
 - Performance issue -_+ (should always on one's mind), including segmentation, attaining + prefiltering lines, fuzzy search, fuzzy-search jump-into-line...
 - More mature whole-subline segmentation algorithms for more common Chinese and English languages, as well as for staccato sentences in programming languages.
-- Perfect segmentation vs approaching quick panel's max_display_length but not exceeding it. (Now tend toward the former rather than the latter so that there is still a very low probability that exceeds the maximum display length)
+- Hit the sub-line accurately = directly jump into that sub-line.
+- Perfect segmentation vs approaching quick panel's max_display_length but not exceeding it. (Now tend toward the former rather than the latter, so that there is still a very low probability that exceeds the maximum display length <= bug or feature?)
 - More appropriate interaction logic? (I think it seems to have been optimized quite well now)
 <!-- - More beautiful/logical color & emoji highlight? -->
 
 ## 🐛 Issues
 
 Found a bug or have a feature request? Please open an issue on [GitHub Issues](https://github.com/ChenZhu-Xie/QuickLineNavigator/issues).
+
+- Highlight bugs
+  - Some highlights cannot be cleared (such as forcibly switching search scope, switching projects, closing files, or closing the Sublime window during the search process)?
+  - Some highlights are not applied to the corresponding keywords in time?
+- ~~Currently, immediately closing Sublime or switching projects will cause the highlight to be unable to be eliminated, when the 4 main search functions of the plugin are running.~~
+  - ~~I have tried cleaning by view in ST 4 instead of viewid in ST 3, but it seems to have no effect.~~
+- {Keywords dict} are not retained?
+  - ~~Before executing the precise search, switch the scope.~~
+  - After the precise retrieval is executed, switch the scope in the quick panel.
+  - After the precise retrieval is executed, switch the scope outside the quick panel.
+    - cursor inside the text editor.
+    - cursor inside the keywords input panel.

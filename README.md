@@ -351,6 +351,13 @@ MIT License - see [LICENSE](LICENSE) file for details
 ## 🤝 Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request. Focus areas:
+- Highlight bugs
+  - ~~Some highlights cannot be cleared (such as forcibly switching search scope, switching projects, closing files, or closing the Sublime window during the search process).
+  - Some highlights are not applied to the corresponding keywords in time.
+- Keyword are not retained.
+  - ~~Before executing the precise search, switch the scope.~~
+  - After the precise retrieval is executed, switch the scope in the quick panel.
+  - After the precise retrieval is executed, switch the scope outside the quick panel.
 - ~~Currently, immediately closing Sublime or switching projects will cause the highlight to be unable to be eliminated, when the 4 main search functions of the plugin are running.~~
   - ~~I have tried cleaning by view in ST 4 instead of viewid in ST 3, but it seems to have no effect.~~
 - fuzzy search the whole line like **[SimpleFuzzy](https://github.com/ukyouz/SublimeText-SimpleFuzzy)**, while jump to the specific subline?

@@ -357,7 +357,7 @@ Contributions are welcome! Please feel free to submit a Pull Request. Focus area
 - [x] Hit the sub-line accurately = directly jump into that sub-line.
 - [ ] Fuzzy search the whole line like **[SimpleFuzzy](https://github.com/ukyouz/SublimeText-SimpleFuzzy)**, while jump to the specific subline?
 - [ ] Performance issue -_+ (should always on one's mind), including segmentation, attaining + prefiltering lines, fuzzy search, fuzzy-search jump-into-line...
-  - [x] attaining + prefiltering lines: ugrep = fast enough?
+  - [x] attaining + prefiltering lines: ugrep = fast enough for multi-keywords grep?
   - [x] segmentation: The complexity of single-line slicing has been reduced from "binary × substring scan" to "binary × O(1) + bisect", which has an order of magnitude improvement for long lines (especially multiple keywords).
   - [x] The keyword preparation overhead of multiple result formatting is almost eliminated.
 - [ ] More mature whole-subline segmentation algorithms for more common Chinese and English languages, as well as for staccato sentences in programming languages.
@@ -384,3 +384,4 @@ Found a bug or have a feature request? Please open an issue on [GitHub Issues](h
   - [x] After the precise retrieval is executed, switch the scope outside the quick panel.
     - [x] cursor inside the text editor.
     - [x] cursor inside the keywords input panel.
+- [ ] More appropriate delimiter and identifying logic for keyphrases?

@@ -6,6 +6,8 @@ A powerful Sublime Text plugin that applies accurate pre-filters to narrow candi
 
 https://github.com/user-attachments/assets/67b14314-0819-4472-95c2-8a4d6a2e9b4f
 
+>  The actual performance should surpass that of the old demo shown above ↑
+
 ## 🔖 Table of Contents
 
 1. [Usage Tips](#-usage-tips)

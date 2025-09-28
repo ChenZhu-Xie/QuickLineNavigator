@@ -362,6 +362,9 @@ Contributions are welcome! Please feel free to submit a Pull Request. Focus area
   - [x] The keyword preparation overhead of multiple result formatting is almost eliminated.
 - [ ] More mature whole-subline segmentation algorithms for more common Chinese and English languages, as well as for staccato sentences in programming languages.
 - [ ] Perfect segmentation vs approaching quick panel's max_display_length but not exceeding it. (Now tend toward the former rather than the latter, so that there is still a very low probability that exceeds the maximum display length <= bug or feature?)
+- [ ] Concurrent highlighting within the right-hand “minimap”
+- [ ] Refine the search for Chinese phrases
+- [ ] Refined log outputs
 - [ ] More appropriate interaction logic? (I think it seems to have been optimized quite well now)
 - [ ] Highlight (behavior) while editing?
 <!-- - More beautiful/logical color & emoji highlight? -->
@@ -372,7 +375,7 @@ Found a bug or have a feature request? Please open an issue on [GitHub Issues](h
 
 - Highlight bugs?
   - Some highlights cannot be cleared? (such as forcibly switching search scope, switching projects, closing files, or closing the Sublime window during the search process)
-  - Some highlights are not applied to the corresponding keywords in time?
+  - Some highlights are not applied to the corresponding keywords (within the editor) in time?
 - [x] ~~Currently, immediately closing Sublime or switching projects will cause the highlight to be unable to be eliminated, when the 4 main search functions of the plugin are running. (not a problem anymore, have been figured out.)~~
   - [x] ~~I have tried cleaning by view in ST 4 instead of viewid in ST 3, but it seems to have no effect.~~
 - [x] {Keywords dict} are not retained?

@@ -1731,11 +1731,28 @@ class ResultsDisplayHandler:
         )
 
     @staticmethod
+    def _compute_segment_col(item):
+        try:
+            strip_offset = int(item.get('strip_offset', 0) or 0)
+        except Exception:
+            strip_offset = 0
+        seg_rel = 0
+        if not item.get('is_single_segment', False):
+            try:
+                seg_rel = int(item.get('segment_start', 0) or 0)
+            except Exception:
+                seg_rel = 0
+        return max(0, strip_offset + seg_rel)
+
+    @staticmethod
     def _handle_selection(window, item, keywords, scope, highlight_segment_callback):
         file_path = item['file']
         line_number = item.get('line_number', 1) - 1
+        seg_col = ResultsDisplayHandler._compute_segment_col(item)
+
         keyword_state_manager.stored_keywords = ""
         keyword_state_manager.debug_print("_handle_selection(): Search completed, clearing stored keywords")
+
         if scope == 'open_files':
             target_view = None
             for view in window.views():
@@ -1744,40 +1761,50 @@ class ResultsDisplayHandler:
                     break
             if target_view:
                 window.focus_view(target_view)
-                point = target_view.text_point(line_number, 0)
+                point = target_view.text_point(line_number, seg_col)
                 target_view.sel().clear()
                 target_view.sel().add(sublime.Region(point))
                 target_view.show_at_center(point)
                 highlighter.highlight(target_view, keywords)
                 highlight_segment_callback(target_view, item, line_number)
                 return
+
         view = window.open_file(
-            "{0}:{1}:0".format(file_path, line_number + 1),
+            "{}:{}:{}".format(file_path, line_number + 1, seg_col),
             sublime.ENCODED_POSITION
         )
+
         def highlight_when_ready():
             if view.is_loading():
                 sublime.set_timeout(highlight_when_ready, 10)
             else:
+                point = view.text_point(line_number, seg_col)
+                view.sel().clear()
+                view.sel().add(sublime.Region(point))
+                view.show_at_center(point)
                 highlighter.highlight(view, keywords)
                 highlight_segment_callback(view, item, line_number)
+
         highlight_when_ready()
 
     @staticmethod
     def _handle_preview(window, item, keywords, scope, highlight_segment_callback):
         file_path = item['file']
         line_number = item.get('line_number', 1) - 1
+        seg_col = ResultsDisplayHandler._compute_segment_col(item)
+
         if scope == 'open_files':
             for view in window.views():
                 if view.file_name() == file_path:
                     window.focus_view(view)
-                    point = view.text_point(line_number, 0)
+                    point = view.text_point(line_number, seg_col)
                     view.sel().clear()
                     view.sel().add(sublime.Region(point))
                     view.show_at_center(point)
                     highlighter.highlight(view, keywords)
                     highlight_segment_callback(view, item, line_number)
                     return
+
         target_view = None
         for view in window.views():
             if view.file_name() == file_path:
@@ -1785,26 +1812,28 @@ class ResultsDisplayHandler:
                 break
         if target_view:
             window.focus_view(target_view)
-            point = target_view.text_point(line_number, 0)
+            point = target_view.text_point(line_number, seg_col)
             target_view.sel().clear()
             target_view.sel().add(sublime.Region(point))
             target_view.show_at_center(point)
             highlighter.highlight(target_view, keywords)
             highlight_segment_callback(target_view, item, line_number)
         else:
-            view = window.open_file(file_path, sublime.TRANSIENT | sublime.FORCE_GROUP)
+            view = window.open_file(
+                "{}:{}:{}".format(file_path, line_number + 1, seg_col),
+                sublime.TRANSIENT | sublime.FORCE_GROUP | sublime.ENCODED_POSITION
+            )
             def goto_line():
                 if view.is_loading():
                     sublime.set_timeout(goto_line, 10)
                 else:
-                    point = view.text_point(line_number, 0)
+                    point = view.text_point(line_number, seg_col)
                     view.sel().clear()
                     view.sel().add(sublime.Region(point))
                     view.show_at_center(point)
                     highlighter.highlight(view, keywords)
                     highlight_segment_callback(view, item, line_number)
             goto_line()
-
 
 class ViewCache:
     def __init__(self):

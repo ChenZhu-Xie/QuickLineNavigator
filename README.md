@@ -364,14 +364,14 @@ Contributions are welcome! Please feel free to submit a Pull Request. Focus area
 
 Found a bug or have a feature request? Please open an issue on [GitHub Issues](https://github.com/ChenZhu-Xie/QuickLineNavigator/issues).
 
-- Highlight bugs
-  - Some highlights cannot be cleared (such as forcibly switching search scope, switching projects, closing files, or closing the Sublime window during the search process)?
+- Highlight bugs?
+  - Some highlights cannot be cleared? (such as forcibly switching search scope, switching projects, closing files, or closing the Sublime window during the search process)
   - Some highlights are not applied to the corresponding keywords in time?
 - [x] ~~Currently, immediately closing Sublime or switching projects will cause the highlight to be unable to be eliminated, when the 4 main search functions of the plugin are running.~~
   - [x] ~~I have tried cleaning by view in ST 4 instead of viewid in ST 3, but it seems to have no effect.~~
-- [ ] {Keywords dict} are not retained?
+- [x] ~~{Keywords dict} are not retained?~~
   - [x] ~~Before executing the precise search, switch the scope.~~
-  - [ ] After the precise retrieval is executed, switch the scope in the quick panel.
-  - [ ] After the precise retrieval is executed, switch the scope outside the quick panel.
-    - [ ] cursor inside the text editor.
-    - [ ] cursor inside the keywords input panel.
+  - [x] ~~After the precise retrieval is executed, switch the scope in the quick panel.~~
+  - [x] ~~After the precise retrieval is executed, switch the scope outside the quick panel.~~
+    - [x] ~~cursor inside the text editor.~~
+    - [x] ~~cursor inside the keywords input panel.~~

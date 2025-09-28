@@ -803,16 +803,74 @@ class DisplayFormatter:
         self._keyword_patterns = {}
         self.total_to_format = 0
         self.current_formatted = 0
+        self._char_width_cache = {}
+        self._last_keywords_key = None
+
+    def _char_width(self, ch):
+        cw = self._char_width_cache.get(ch)
+        if cw is not None:
+            return cw
+        w = TextUtils.display_width(ch)
+        if len(self._char_width_cache) < 10000:
+            self._char_width_cache[ch] = w
+        return w
+
+    def _prepare_line_metrics(self, text, keyword_info):
+        width_ps = [0] * (len(text) + 1)
+        for i, ch in enumerate(text):
+            width_ps[i+1] = width_ps[i] + self._char_width(ch)
+
+        lower = text.lower()
+        match_pos_map = {}
+        total_matches = 0
+        for kw, kw_lower in zip(keyword_info['keywords'], keyword_info['lower_keywords']):
+            pos_list = []
+            start = 0
+            step = max(1, len(kw_lower))
+            while True:
+                idx = lower.find(kw_lower, start)
+                if idx == -1:
+                    break
+                pos_list.append(idx)
+                start = idx + step
+            match_pos_map[kw_lower] = pos_list
+            total_matches += len(pos_list)
+
+        return {
+            'width_ps': width_ps,
+            'lower': lower,
+            'match_pos_map': match_pos_map,
+            'total_matches': total_matches
+        }
+
+    def _span_width(self, width_ps, start, end):
+        return width_ps[end] - width_ps[start]
+
+    def _count_overhead(self, match_pos_map, lower_keywords, start, end, kw_lens):
+        import bisect
+        extra = 0
+        for kw_lower, kw_len in zip(lower_keywords, kw_lens):
+            pos_list = match_pos_map.get(kw_lower, [])
+            if not pos_list:
+                continue
+            right_bound = max(start, end - kw_len)
+            lo = bisect.bisect_left(pos_list, start)
+            hi = bisect.bisect_right(pos_list, right_bound)
+            extra += (hi - lo) * 2
+        return extra
 
     def format_results(self, results, keywords, scope):
         if not results:
             return [], []
-        self._prepare_keyword_patterns(keywords)
         if len(self._format_cache) > 5000:
             self.clear_caches()
+        kw_key = tuple(keywords) if keywords else ()
+        if kw_key != self._last_keywords_key:
+            self._prepare_keyword_patterns(keywords)
+            self._last_keywords_key = kw_key
+        keyword_info = self._prepare_keyword_info_cached(keywords)
         formatted = []
         expanded_results = []
-        keyword_info = self._prepare_keyword_info(keywords)
         display_index = 0
         for i, item in enumerate(results):
             cache_key = (
@@ -840,9 +898,7 @@ class DisplayFormatter:
             fmt_items, exp_items = self._format_single_fast(item, display_index, keyword_info, scope)
             display_index += len(fmt_items)
             if len(self._format_cache) < 5000:
-                original_formatted = []
-                for fmt_item in fmt_items:
-                    original_formatted.append([fmt_item[0], fmt_item[1]])
+                original_formatted = [[fi[0], fi[1]] for fi in fmt_items]
                 self._format_cache[cache_key] = {
                     'formatted': original_formatted,
                     'expanded': exp_items
@@ -857,37 +913,92 @@ class DisplayFormatter:
         strip_offset = len(line) - len(line.lstrip())
         if not line_stripped:
             return [], []
+
+        metrics = self._prepare_line_metrics(line_stripped, keyword_info)
+        kw_lens = [len(kw) for kw in keyword_info['lower_keywords']]
+
+        base_width = self._span_width(metrics['width_ps'], 0, len(line_stripped))
+        est_extra = self._count_overhead(metrics['match_pos_map'], keyword_info['lower_keywords'], 0, len(line_stripped), kw_lens)
+        est_total = base_width + est_extra
+
         formatted_items = []
         expanded_items = []
-        line_with_emojis = self._apply_emoji_highlights_fast(line_stripped, keyword_info)
-        line_width = self._get_cached_width(line_with_emojis)
-        if line_width <= self.max_length:
+
+        if est_total <= self.max_length:
+            line_with_emojis = self._apply_emoji_highlights_fast(line_stripped, keyword_info)
             sub_line = self._format_sub_line_simple(item, start_display_index, keyword_info, scope)
             formatted_items.append([line_with_emojis, sub_line])
-            expanded_item = item.copy()
-            expanded_item['strip_offset'] = strip_offset
-            expanded_item['is_single_segment'] = True
+            expanded_item = {
+                'file': item.get('file'),
+                'line_number': item.get('line_number'),
+                'line': item.get('line'),
+                'display': item.get('display'),
+                'point': item.get('point'),
+                'strip_offset': strip_offset,
+                'is_single_segment': True
+            }
             expanded_items.append(expanded_item)
-        else:
-            segments = self._smart_split_original(line_stripped, keyword_info)
-            for seg_index, (seg_start, seg_end) in enumerate(segments):
-                seg_text = line_stripped[seg_start:seg_end]
-                seg_with_emojis = self._apply_emoji_highlights_fast(seg_text, keyword_info)
-                current_display_index = start_display_index + seg_index
-                sub_line = self._format_sub_line_simple(
-                    item, current_display_index, keyword_info, scope, seg_index, len(segments)
-                )
-                formatted_items.append([seg_with_emojis, sub_line])
-                expanded_item = item.copy()
-                expanded_item.update({
-                    'segment_start': seg_start,
-                    'segment_end': seg_end,
-                    'segment_index': seg_index,
-                    'total_segments': len(segments),
-                    'strip_offset': strip_offset,
-                    'is_single_segment': False
-                })
-                expanded_items.append(expanded_item)
+            return formatted_items, expanded_items
+
+        segments = []
+        start = 0
+        text_len = len(line_stripped)
+        while start < text_len:
+            left = start + 1
+            right = text_len
+            best_end = start + 1
+            while left <= right:
+                mid = (left + right) // 2
+                seg_width = self._span_width(metrics['width_ps'], start, mid)
+                seg_extra = self._count_overhead(metrics['match_pos_map'], keyword_info['lower_keywords'], start, mid, kw_lens)
+                total_w = seg_width + seg_extra
+                if total_w <= self.max_length:
+                    best_end = mid
+                    left = mid + 1
+                else:
+                    right = mid - 1
+
+            if best_end >= text_len:
+                segments.append((start, text_len))
+                break
+
+            actual_end = self._find_best_break_forward(line_stripped, start, best_end, keyword_info)
+            if actual_end > best_end:
+                seg_width = self._span_width(metrics['width_ps'], start, actual_end)
+                seg_extra = self._count_overhead(metrics['match_pos_map'], keyword_info['lower_keywords'], start, actual_end, kw_lens)
+                if seg_width + seg_extra > self.max_length:
+                    actual_end = self._find_best_break_backward(line_stripped, start, best_end)
+
+            if actual_end <= start:
+                actual_end = min(start + 1, text_len)
+
+            segments.append((start, actual_end))
+            start = actual_end
+
+        for seg_index, (seg_start, seg_end) in enumerate(segments):
+            seg_text = line_stripped[seg_start:seg_end]
+            seg_with_emojis = self._apply_emoji_highlights_fast(seg_text, keyword_info)
+            current_display_index = start_display_index + seg_index
+            sub_line = self._format_sub_line_simple(
+                item, current_display_index, keyword_info, scope, seg_index, len(segments)
+            )
+            formatted_items.append([seg_with_emojis, sub_line])
+
+            expanded_item = {
+                'file': item.get('file'),
+                'line_number': item.get('line_number'),
+                'line': item.get('line'),
+                'display': item.get('display'),
+                'point': item.get('point'),
+                'segment_start': seg_start,
+                'segment_end': seg_end,
+                'segment_index': seg_index,
+                'total_segments': len(segments),
+                'strip_offset': strip_offset,
+                'is_single_segment': False
+            }
+            expanded_items.append(expanded_item)
+
         return formatted_items, expanded_items
 
     def _format_sub_line_simple(self, item, display_index, keyword_info, scope, segment_index=0, total_segments=1):
@@ -904,27 +1015,30 @@ class DisplayFormatter:
             parts.append("📄 {}".format(filename))
         return "☲ " + " ".join(parts)
 
-
     def _prepare_keyword_patterns(self, keywords):
+        kw_key = tuple(keywords) if keywords else ()
+        if getattr(self, '_patterns_key', None) == kw_key:
+            return
         self._keyword_patterns.clear()
-        for kw in keywords:
+        for kw in keywords or []:
             if kw and kw not in self._keyword_patterns:
-                self._keyword_patterns[kw] = re.compile(
-                    re.escape(kw),
-                    re.IGNORECASE
-                )
+                self._keyword_patterns[kw] = re.compile(re.escape(kw), re.IGNORECASE)
+        self._patterns_key = kw_key
 
-    def _prepare_keyword_info(self, keywords):
-        info = {
-            'keywords': keywords,
-            'lower_keywords': [kw.lower() for kw in keywords],
-            'emoji_map': {}
-        }
-        for i, kw in enumerate(keywords):
-            emoji = KEYWORD_EMOJIS[i % len(KEYWORD_EMOJIS)]
-            info['emoji_map'][kw.lower()] = emoji
-            self._emoji_cache[kw.lower()] = emoji
-        return info
+    def _prepare_keyword_info_cached(self, keywords):
+        if not hasattr(self, '_last_keyword_info') or (tuple(keywords) != getattr(self, '_last_keyword_info_key', None)):
+            info = {
+                'keywords': keywords,
+                'lower_keywords': [kw.lower() for kw in keywords],
+                'emoji_map': {}
+            }
+            for i, kw in enumerate(keywords):
+                emoji = KEYWORD_EMOJIS[i % len(KEYWORD_EMOJIS)]
+                info['emoji_map'][kw.lower()] = emoji
+                self._emoji_cache[kw.lower()] = emoji
+            self._last_keyword_info = info
+            self._last_keyword_info_key = tuple(keywords)
+        return self._last_keyword_info
 
     def _apply_emoji_highlights_fast(self, text, keyword_info):
         if not keyword_info['keywords']:

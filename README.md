@@ -354,8 +354,9 @@ Contributions are welcome! Please feel free to submit a Pull Request. Focus area
 - ~~Currently, immediately closing Sublime or switching projects will cause the highlight to be unable to be eliminated, when the 4 main search functions of the plugin are running.~~
   - ~~I have tried cleaning by view in ST 4 instead of viewid in ST 3, but it seems to have no effect.~~
 - fuzzy search the whole line like **[SimpleFuzzy](https://github.com/ukyouz/SublimeText-SimpleFuzzy)**, while jump to the specific subline?
-- Performance issue -_+ (always on one's mind)
+- Performance issue -_+ (should always on one's mind), including segmentation, attaining + prefiltering lines, fuzzy search, fuzzy-search jump-into-line...
 - More mature whole-subline segmentation algorithms for more common Chinese and English languages, as well as for staccato sentences in programming languages.
+- Perfect segmentation vs approaching quick panel's max_display_length but not exceeding it. (Now tend toward the former rather than the latter so that there is still a very low probability that exceeds the maximum display length)
 - More appropriate interaction logic? (I think it seems to have been optimized quite well now)
 <!-- - More beautiful/logical color & emoji highlight? -->
 

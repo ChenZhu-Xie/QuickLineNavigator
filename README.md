@@ -352,7 +352,7 @@ MIT License - see [LICENSE](LICENSE) file for details
 
 Contributions are welcome! Please feel free to submit a Pull Request. Focus areas:
 - Highlight bugs
-  - ~~Some highlights cannot be cleared (such as forcibly switching search scope, switching projects, closing files, or closing the Sublime window during the search process).
+  - Some highlights cannot be cleared (such as forcibly switching search scope, switching projects, closing files, or closing the Sublime window during the search process).
   - Some highlights are not applied to the corresponding keywords in time.
 - Keyword are not retained.
   - ~~Before executing the precise search, switch the scope.~~

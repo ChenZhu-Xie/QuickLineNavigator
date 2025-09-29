@@ -66,9 +66,12 @@ class KeywordStateManager:
             result = self._ensure_trailing_space(formatted)
             self.debug_print("Using selected text: '{0}'".format(result))
             return result
-        result = self._ensure_trailing_space(self.stored_keywords)
-        self.debug_print("Using stored keywords: '{0}'".format(result))
-        return result
+        if self.is_panel_switching:
+            result = self._ensure_trailing_space(self.stored_keywords)
+            self.debug_print("Switching: using stored keywords: '{0}'".format(result))
+            return result
+        self.debug_print("Fresh run: not using stored keywords")
+        return ""
 
     def save_current_keywords(self, text):
         if text:

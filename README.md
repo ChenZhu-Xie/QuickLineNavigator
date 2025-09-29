@@ -1,10 +1,10 @@
-![QuickLineNavigator](https://github.com/user-attachments/assets/6647105a-5499-45fd-9506-40db7c209ba4)# QuickLineNavigator
+# QuickLineNavigator
 
 A powerful Sublime Text plugin that applies accurate pre-filters to narrow candidate lines before performing fuzzy matching and navigating through (sub)lines in your codebase.
 
 ## 📺 Demo.webm
 
-[QuickLineNavigator.webm](https://github.com/user-attachments/assets/faa0562a-3d30-4f8a-93d3-3a72af352899)
+![QuickLineNavigator](https://github.com/user-attachments/assets/6647105a-5499-45fd-9506-40db7c209ba4)
 
 ## 📺 Demo.mp4
 

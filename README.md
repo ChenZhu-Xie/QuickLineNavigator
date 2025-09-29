@@ -26,7 +26,6 @@ https://github.com/user-attachments/assets/67b14314-0819-4472-95c2-8a4d6a2e9b4f
    - [Special Values](#special-values)
 4. [Installation](#-installation)
    - [Package Control Installation (Recommended)](#package-control-installation-recommended)
-   - [Manual Installation](#manual-installation)
 5. [Ugrep Inhancement](#-ugrep-inhancement)
    - [Obtaining Ugrep](#obtaining-ugrep)
    - [Without Ugrep](#without-ugrep)
@@ -119,30 +118,6 @@ The `file_extensions` setting supports various configurations:
 3. Type `Package Control: Install Package` and press Enter
 4. Search for `QuickLineNavigator` and press Enter
 5. Wait for installation to complete
-
-### Manual Installation
-1. **Download the Plugin**
-   - Visit [QuickLineNavigator Releases](https://github.com/ChenZhu-Xie/QuickLineNavigator/releases)
-   - Download the latest `QuickLineNavigator.zip`
-
-2. **Locate Sublime Text Packages Folder**
-   - Open Sublime Text
-   - Go to `Preferences` → `Browse Packages...`
-   - This opens your Packages directory
-
-3. **Install the Plugin**
-   - Create a folder named `QuickLineNavigator` in the Packages directory
-   - Extract the downloaded ZIP file into this folder
-   - Directory paths by platform:
-     - **Windows** (Installed): `%APPDATA%\Sublime Text\Packages\QuickLineNavigator\`
-     - **Windows** (Portable): `Sublime Text\Data\Packages\QuickLineNavigator\`
-     - **macOS**: `~/Library/Application Support/Sublime Text/Packages/QuickLineNavigator/`
-     - **Linux**: `~/.config/sublime-text/Packages/QuickLineNavigator/`
-
-4. **Verify Installation**
-   - Restart Sublime Text (and wait for a minute)
-   - Open Command Palette and search for `QuickLineNavigator`
-   - You should see available commands
 
 ## 🔧 Ugrep Inhancement
 

@@ -4,7 +4,7 @@ A powerful Sublime Text plugin that applies accurate pre-filters to narrow candi
 
 ## 📺 Demo.webm
 
-![QuickLineNavigator](https://github.com/user-attachments/assets/6647105a-5499-45fd-9506-40db7c209ba4)
+[QuickLineNavigator-2.webm](https://github.com/user-attachments/assets/0bb29814-1e08-422e-88f9-a4a0296f9ffd)
 
 ## 📺 Demo.mp4
 

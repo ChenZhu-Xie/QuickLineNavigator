@@ -20,7 +20,6 @@ https://github.com/user-attachments/assets/67b14314-0819-4472-95c2-8a4d6a2e9b4f
    - [Search Commands](#-search-commands)
    - [Filter Controls](#️-filter-controls)
    - [Folder Settings](#-folder-settings)
-   - [Highlight Management (unnecessary for now)](#-highlight-management-unnecessary-for-now)
 3. [File Extension Filtering](#️-file-extension-filtering)
    - [Examples](#examples)
    - [Special Values](#special-values)

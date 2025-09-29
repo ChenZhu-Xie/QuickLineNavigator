@@ -2,7 +2,7 @@
 
 A powerful Sublime Text plugin that applies accurate pre-filters to narrow candidate lines before performing fuzzy matching and navigating through (sub)lines in your codebase.
 
-## 📺 Demo.webm
+## 📺 Demo.gif
 
 ![QuickLineNavigator-2 9-small](https://github.com/user-attachments/assets/13c0d016-9544-45f1-8f93-801bdf2e5162)
 
